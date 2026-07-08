@@ -1,0 +1,10 @@
+[
+  {"id":"nama_koridor_kosong","active":true,"name":"Nama Koridor kosong","rule_type":"blank","source_columns":["Nama Koridor"],"penalty":10,"settings_json":{}},
+  {"id":"panjang_kosong_atau_nol","active":true,"name":"Panjang kosong/0","rule_type":"nonpositive","source_columns":["Panjang (KM)"],"penalty":25,"settings_json":{}},
+  {"id":"biaya_kosong_atau_nol","active":true,"name":"Biaya kosong/0","rule_type":"nonpositive","source_columns":["Biaya (Rp Miliar)"],"penalty":15,"settings_json":{}},
+  {"id":"kondisi_tidak_sama_panjang","active":true,"name":"Panjang kondisi tidak sama dengan panjang koridor","rule_type":"condition_length_mismatch","source_columns":["Baik","Sedang","Rusak Ringan","Rusak Berat","Panjang (KM)"],"penalty":15,"settings_json":{"tolerance_km":0.05}},
+  {"id":"tematik_kosong","active":true,"name":"Tematik kosong","rule_type":"blank","source_columns":["Tematik"],"penalty":5,"settings_json":{}},
+  {"id":"produksi_kosong","active":true,"name":"Produksi total 0","rule_type":"nonpositive","source_columns":["produksi_total_ton_tahun"],"penalty":5,"settings_json":{}},
+  {"id":"fasilitas_kosong","active":true,"name":"Fasilitas publik 0","rule_type":"nonpositive","source_columns":["facility_weighted"],"penalty":5,"settings_json":{}},
+  {"id":"kml_kosong","active":true,"name":"Panjang KML/KMZ kosong/0","rule_type":"nonpositive","source_columns":["Panjang KML/KMZ (KM)"],"penalty":5,"settings_json":{}}
+]

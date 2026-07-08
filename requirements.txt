@@ -1,0 +1,8 @@
+﻿streamlit
+pandas
+numpy
+openpyxl
+pyarrow
+duckdb
+xlsxwriter
+plotly

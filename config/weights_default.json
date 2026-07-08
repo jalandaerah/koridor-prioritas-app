@@ -1,0 +1,9 @@
+{
+  "eligibility_score": 0.20,
+  "urgency_score": 0.20,
+  "connectivity_score": 0.15,
+  "facility_score": 0.15,
+  "economic_score": 0.15,
+  "cost_efficiency_score": 0.10,
+  "readiness_score": 0.05
+}

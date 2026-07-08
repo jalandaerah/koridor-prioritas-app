@@ -1,0 +1,344 @@
+[
+  {
+    "id": "rpjmn",
+    "active": true,
+    "group": "Eligibility",
+    "name": "Masuk RPJMN",
+    "formula_type": "exists",
+    "source_columns": [
+      "RPJMN"
+    ],
+    "weight": 12.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "complete_score": 100,
+      "missing_score": 0
+    },
+    "description": "Nilai 100 jika kolom RPJMN terisi; 0 jika kosong."
+  },
+  {
+    "id": "tematik",
+    "active": true,
+    "group": "Eligibility",
+    "name": "Memiliki Tematik",
+    "formula_type": "exists",
+    "source_columns": [
+      "Tematik"
+    ],
+    "weight": 8.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "complete_score": 100,
+      "missing_score": 0
+    },
+    "description": "Nilai 100 jika kolom Tematik terisi; 0 jika kosong."
+  },
+  {
+    "id": "kspp",
+    "active": true,
+    "group": "Eligibility",
+    "name": "KSPP",
+    "formula_type": "exists",
+    "source_columns": [
+      "KSPP"
+    ],
+    "weight": 5.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "complete_score": 100,
+      "missing_score": 0
+    },
+    "description": "Nilai 100 jika kolom KSPP terisi; 0 jika kosong."
+  },
+  {
+    "id": "rujj",
+    "active": true,
+    "group": "Eligibility",
+    "name": "Rencana Umum Jaringan Jalan",
+    "formula_type": "exists",
+    "source_columns": [
+      "Beririsan dengan Rencana Umum Jaringan Jalan"
+    ],
+    "weight": 3.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "complete_score": 100,
+      "missing_score": 0
+    },
+    "description": "Nilai 100 jika beririsan dengan RUJJ; 0 jika kosong."
+  },
+  {
+    "id": "hari_jalan",
+    "active": true,
+    "group": "Eligibility",
+    "name": "Program Hari Jalan",
+    "formula_type": "exists",
+    "source_columns": [
+      "Beririsan dengan Program Hari Jalan"
+    ],
+    "weight": 1.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "complete_score": 100,
+      "missing_score": 0
+    },
+    "description": "Nilai 100 jika beririsan dengan Program Hari Jalan; 0 jika kosong."
+  },
+  {
+    "id": "diskresi",
+    "active": true,
+    "group": "Eligibility",
+    "name": "Diskresi Menteri",
+    "formula_type": "exists",
+    "source_columns": [
+      "Beririsan dengan Diskresi Menteri"
+    ],
+    "weight": 1.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "complete_score": 100,
+      "missing_score": 0
+    },
+    "description": "Nilai 100 jika beririsan dengan Diskresi Menteri; 0 jika kosong."
+  },
+  {
+    "id": "kondisi_jalan",
+    "active": true,
+    "group": "Kondisi Jalan",
+    "name": "Urgensi Kondisi Jalan",
+    "formula_type": "weighted_percent_sum",
+    "source_columns": [
+      "persen_rusak_berat",
+      "persen_rusak_ringan",
+      "persen_sedang"
+    ],
+    "weight": 20.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "weights": {
+        "persen_rusak_berat": 1.0,
+        "persen_rusak_ringan": 0.6,
+        "persen_sedang": 0.25
+      },
+      "clip_min": 0,
+      "clip_max": 100
+    },
+    "description": "Skor = RB% x 1,00 + RR% x 0,60 + Sedang% x 0,25. Angka ini bisa diubah di settings_json."
+  },
+  {
+    "id": "simpul_transportasi",
+    "active": true,
+    "group": "Konektivitas",
+    "name": "Terhubung Simpul Transportasi",
+    "formula_type": "yes_no",
+    "source_columns": [
+      "Status Konektivitas - Terhubung ke Simpul Transportasi"
+    ],
+    "weight": 6.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "true_values": [
+        "YA",
+        "YES",
+        "Y",
+        "TRUE",
+        "1",
+        "TERHUBUNG",
+        "ADA"
+      ],
+      "true_score": 100,
+      "false_score": 0
+    },
+    "description": "YA/ADA/TERHUBUNG = 100; selain itu 0."
+  },
+  {
+    "id": "pusat_kegiatan",
+    "active": true,
+    "group": "Konektivitas",
+    "name": "Terhubung PKN/PKW",
+    "formula_type": "yes_no",
+    "source_columns": [
+      "Status Konektivitas - Terhubung ke pusat kegiatan (PKN/PKW)"
+    ],
+    "weight": 5.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "true_values": [
+        "YA",
+        "YES",
+        "Y",
+        "TRUE",
+        "1",
+        "TERHUBUNG",
+        "ADA"
+      ],
+      "true_score": 100,
+      "false_score": 0
+    },
+    "description": "YA/ADA/TERHUBUNG = 100; selain itu 0."
+  },
+  {
+    "id": "koridor_utama",
+    "active": true,
+    "group": "Konektivitas",
+    "name": "Terhubung Koridor Utama Lainnya",
+    "formula_type": "yes_no",
+    "source_columns": [
+      "Status Konektivitas - Terhubung ke koridor utama lainnya"
+    ],
+    "weight": 4.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "true_values": [
+        "YA",
+        "YES",
+        "Y",
+        "TRUE",
+        "1",
+        "TERHUBUNG",
+        "ADA"
+      ],
+      "true_score": 100,
+      "false_score": 0
+    },
+    "description": "YA/ADA/TERHUBUNG = 100; selain itu 0."
+  },
+  {
+    "id": "fasilitas_publik",
+    "active": true,
+    "group": "Fasilitas Publik",
+    "name": "Fasilitas Publik Tertimbang",
+    "formula_type": "weighted_sum_higher",
+    "source_columns": [
+      "Faslilitas Umum Dilewati - Pendidikan",
+      "Faslilitas Umum Dilewati - Kesehatan",
+      "Faslilitas Umum Dilewati - Pemerintahan",
+      "Faslilitas Umum Dilewati - SPPG"
+    ],
+    "weight": 12.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "weights": {
+        "Faslilitas Umum Dilewati - Pendidikan": 1,
+        "Faslilitas Umum Dilewati - Kesehatan": 2,
+        "Faslilitas Umum Dilewati - Pemerintahan": 1,
+        "Faslilitas Umum Dilewati - SPPG": 3
+      },
+      "cap_quantile": 0.95
+    },
+    "description": "Pendidikan x1 + Kesehatan x2 + Pemerintahan x1 + SPPG x3, lalu dinormalisasi 0-100."
+  },
+  {
+    "id": "ekonomi",
+    "active": true,
+    "group": "Ekonomi",
+    "name": "Produksi dan Luas Lahan",
+    "formula_type": "economic_combined",
+    "source_columns": [
+      "produksi_total_ton_tahun",
+      "luas_lahan_total_ha"
+    ],
+    "weight": 15.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "production_weight": 0.6,
+      "land_weight": 0.4,
+      "cap_quantile": 0.95
+    },
+    "description": "Skor produksi 60% + skor luas lahan 40%, masing-masing dinormalisasi 0-100."
+  },
+  {
+    "id": "efisiensi_biaya",
+    "active": true,
+    "group": "Biaya",
+    "name": "Efisiensi Biaya per KM",
+    "formula_type": "numeric_lower_positive",
+    "source_columns": [
+      "biaya_per_km_miliar"
+    ],
+    "weight": 10.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "cap_quantile": 0.95,
+      "zero_or_missing_score": 0
+    },
+    "description": "Biaya/KM lebih rendah = skor lebih tinggi. Kosong/0 tidak diberi skor."
+  },
+  {
+    "id": "prioritas_kab",
+    "active": true,
+    "group": "Readiness",
+    "name": "Prioritas Kabupaten/Kota",
+    "formula_type": "rank_lower",
+    "source_columns": [
+      "Prioritas Kabupaten/Kota"
+    ],
+    "weight": 4.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "missing_score": 0
+    },
+    "description": "Nomor prioritas lebih kecil = skor lebih tinggi."
+  },
+  {
+    "id": "prioritas_prov",
+    "active": true,
+    "group": "Readiness",
+    "name": "Prioritas Provinsi",
+    "formula_type": "rank_lower",
+    "source_columns": [
+      "Prioritas Provinsi"
+    ],
+    "weight": 2.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "missing_score": 0
+    },
+    "description": "Nomor prioritas lebih kecil = skor lebih tinggi."
+  },
+  {
+    "id": "koridor_awal",
+    "active": true,
+    "group": "Readiness",
+    "name": "Koridor Awal",
+    "formula_type": "yes_no",
+    "source_columns": [
+      "Koridor Awal"
+    ],
+    "weight": 2.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "true_values": [
+        "YA",
+        "YES",
+        "Y",
+        "TRUE",
+        "1",
+        "TERHUBUNG",
+        "ADA"
+      ],
+      "true_score": 100,
+      "false_score": 0
+    },
+    "description": "YA = 100; selain itu 0."
+  },
+  {
+    "id": "kml_readiness",
+    "active": true,
+    "group": "Readiness",
+    "name": "Kelengkapan Panjang KML/KMZ",
+    "formula_type": "kml_ratio",
+    "source_columns": [
+      "Panjang KML/KMZ (KM)",
+      "Panjang (KM)"
+    ],
+    "weight": 4.0,
+    "cap_quantile": 0.95,
+    "settings_json": {
+      "max_ratio": 1.0,
+      "multiplier": 100,
+      "missing_score": 0
+    },
+    "description": "Skor = Panjang KML/KMZ dibagi Panjang Koridor x 100, maksimal 100."
+  }
+]

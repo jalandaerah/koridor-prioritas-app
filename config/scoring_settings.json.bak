@@ -1,0 +1,18 @@
+{
+  "use_data_quality_penalty": true,
+  "penalty_factor": 0.3,
+  "kml_missing_policy": "penalize",
+  "condition_length_mode": "normalize_to_corridor_length",
+  "cost_mode": "excel_total",
+  "unit_cost_miliar_per_km": {
+    "baik": 0.0,
+    "sedang": 0.5,
+    "rusak_ringan": 1.5,
+    "rusak_berat": 3.0
+  },
+  "name_policy": "name_or_no_koridor",
+  "tematik_missing_policy": "score_and_penalty",
+  "condition_cost_zero_policy": "allow_zero",
+  "condition_cost_zero_fallback_condition": "sedang",
+  "condition_cost_zero_minimum_miliar": 0.0
+}

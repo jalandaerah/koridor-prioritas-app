@@ -193,6 +193,55 @@ new_settings = {
 
 st.code("final_score = raw_score - (data_quality_penalty × penalty_factor)")
 
+with st.expander("📘 Panduan cepat membuat rumus baru", expanded=False):
+    st.markdown("""
+    Gunakan urutan ini saat menambah parameter baru di editor rumus:
+
+    1. **Tentukan tujuan parameter.** Contoh: jumlah SPPG, kawasan industri, penduduk terlayani, biaya per penerima manfaat, produksi padi/jagung.
+    2. **Cari kolom sumber** di expander **Kolom yang tersedia untuk rumus**. Nama kolom harus sama persis.
+    3. **Pilih `formula_type` yang sesuai.** Jangan mengetik rumus bebas seperti Excel.
+    4. **Isi `weight`.** Bobot tidak harus total 100 karena sistem menormalkan otomatis.
+    5. **Isi `settings_json` valid.** Wajib pakai tanda kutip dua `"`, bukan kutip satu `'`.
+    6. Klik **Simpan + Hitung Ulang**.
+
+    Tipe rumus yang paling sering dipakai:
+
+    | Kebutuhan | formula_type |
+    |---|---|
+    | Kolom YA/TIDAK | `yes_no` |
+    | Kolom harus terisi | `exists` / `completeness` |
+    | Angka makin besar makin baik | `numeric_higher` |
+    | Angka makin kecil makin baik | `numeric_lower` |
+    | Biaya makin kecil makin baik, tapi 0 tidak boleh bagus | `numeric_lower_positive` |
+    | Nomor prioritas makin kecil makin baik | `rank_lower` |
+    | Beberapa kolom dijumlah dengan bobot | `weighted_sum_higher` |
+    | Kondisi RB/RR/Sedang | `weighted_percent_sum` |
+    | Produksi dikaitkan jenis komoditas | `production_amount_by_type` |
+    | Lahan dikaitkan jenis komoditas | `land_area_by_type` |
+    | Produksi + lahan + bobot komoditas | `production_land_by_type` |
+
+    Contoh parameter baru SPPG:
+
+    ```text
+    id             : sppg_khusus
+    group          : Fasilitas Publik
+    name           : Jumlah SPPG
+    formula_type   : numeric_higher
+    source_columns : Faslilitas Umum Dilewati - SPPG
+    weight         : 8
+    cap_quantile   : 0.95
+    settings_json  : {"cap_quantile":0.95,"missing_score":0}
+    ```
+
+    Contoh bobot komoditas:
+
+    ```json
+    {"commodity_weights":{"Padi":1.8,"Jagung":1.3,"Kedelai":1.4},"default_weight":1.0,"cap_quantile":0.95,"missing_score":0}
+    ```
+
+    Penjelasan lengkap ada di menu **Pengguna → Panduan Aplikasi** dan **Pengguna → Rumus Aktif**.
+    """)
+
 st.subheader("Ringkasan Rumus Saat Ini")
 summary = build_formula_summary(params)
 st.dataframe(format_dataframe_for_display(summary), use_container_width=True, height=360)

@@ -10,6 +10,7 @@ try:
             st.Page("pages/10_Dashboard_Pengguna.py", title="Dashboard", icon="🛣️", default=True),
             st.Page("pages/11_Detail_Koridor.py", title="Detail Koridor", icon="🔎"),
             st.Page("pages/12_Panduan_Aplikasi.py", title="Panduan Aplikasi", icon="📘"),
+            st.Page("pages/13_Penjelasan_Rumus_Aktif.py", title="Rumus Aktif", icon="📑"),
         ],
         "🔐 Admin": [
             st.Page("pages/90_Upload_Data.py", title="Upload Data", icon="📤"),

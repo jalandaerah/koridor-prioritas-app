@@ -1,20 +1,31 @@
-# Aplikasi Penilaian Koridor Prioritas v5.2
+# Aplikasi Penilaian Koridor Prioritas v5.3
 
-Versi ini menambahkan scoring **Ekonomi Komoditas**:
+Versi ini menambahkan penyempurnaan panduan dan audit rumus:
 
-- Jenis Produksi 1-4 bisa diberi bobot berbeda.
-- Jumlah Produksi 1-4 ikut dinilai sebagai produksi tertimbang komoditas.
-- Luas Lahan 1-4 ikut dinilai sebagai lahan tertimbang komoditas.
-- Dashboard menampilkan rekap jenis produksi.
-- Detail Koridor menampilkan ringkasan ekonomi komoditas.
+- Menu baru **Pengguna → Rumus Aktif** untuk membaca rumus scoring yang sedang dipakai.
+- Panduan aplikasi diperluas: alur kerja, peta menu, cara membuat rumus baru, contoh formula_type, contoh settings_json, ekonomi komoditas, dan checklist audit.
+- Menu **Admin → Rumus Perhitungan** ditambah expander panduan cepat membuat rumus baru.
+- Scoring ekonomi komoditas v5.2 tetap ada: jenis produksi, jumlah produksi, dan luas lahan bisa dibobotkan berdasarkan jenis komoditas.
 
-Contoh bobot komoditas di `settings_json`:
+## Deploy Streamlit Cloud
 
-```json
-{"commodity_weights":{"Padi":1.5,"Jagung":1.2,"Kelapa Sawit":1.15},"default_weight":1.0,"cap_quantile":0.95,"missing_score":0}
+- Repository: `jalandaerah/koridor-prioritas-app`
+- Branch: `main`
+- Main file path: `app.py`
+
+## Update dari folder lokal ke GitHub
+
+Jika folder ini sudah menjadi folder kerja repo GitHub:
+
+```powershell
+git add .
+git commit -m "Update v5.3 panduan rumus aktif"
+git push origin main
 ```
 
-Jalankan lokal:
+Jika folder ini belum punya remote GitHub, copy isinya ke folder repo lama atau tambahkan remote sesuai repo Bapak.
+
+## Menjalankan lokal
 
 ```powershell
 python -m venv .venv
@@ -23,8 +34,6 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Deploy Streamlit Cloud:
+## Catatan
 
-- Repository: `jalandaerah/koridor-prioritas-app`
-- Branch: `main`
-- Main file path: `app.py`
+Data upload dan hasil scoring di folder `data/processed` tidak perlu ikut GitHub. Upload ulang Excel di aplikasi online setelah redeploy.

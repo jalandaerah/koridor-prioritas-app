@@ -1,9 +1,8 @@
-
 from __future__ import annotations
 import streamlit as st
 
 st.title("📘 Panduan Aplikasi Koridor Prioritas")
-st.info("Panduan ini mengikuti struktur menu baru: menu Pengguna untuk membaca hasil, menu Admin untuk upload, validasi, rumus, scoring, dan query teknis.")
+st.info("Panduan ini menjelaskan alur kerja aplikasi, fungsi setiap menu, cara membaca dashboard, cara membuat rumus baru, dan cara menjaga hasil ranking tetap bisa diaudit.")
 
 st.header("1. Peta Menu Aplikasi")
 st.markdown("""
@@ -11,7 +10,8 @@ st.markdown("""
 👤 Pengguna
 ├── 🛣️ Dashboard
 ├── 🔎 Detail Koridor
-└── 📘 Panduan Aplikasi
+├── 📘 Panduan Aplikasi
+└── 📑 Rumus Aktif
 
 🔐 Admin
 ├── 📤 Upload Data
@@ -24,122 +24,138 @@ st.markdown("""
 
 st.header("2. Alur kerja yang benar")
 st.markdown("""
-1. Admin membuka **Upload Data** dan mengunggah Excel agregasi koridor.
-2. Admin membuka **Validasi Data** untuk memeriksa data kosong, biaya 0, KML kosong, tematik kosong, dan mismatch kondisi jalan.
-3. Admin membuka **Rumus Perhitungan** untuk mengatur bobot, rumus internal, kebijakan penalti, fallback KML/KMZ, dan biaya berbasis kondisi.
-4. Admin klik **Simpan + Hitung Ulang** atau membuka menu **Scoring** untuk menghitung ulang ranking.
-5. Pengguna membuka **Dashboard** untuk membaca ranking, filter, rekap, query builder, dan export.
-6. Pengguna membuka **Detail Koridor** untuk audit satu koridor secara rinci.
+1. **Admin → Upload Data**: unggah Excel agregasi koridor.
+2. **Admin → Validasi Data**: cek data kosong, panjang 0, biaya 0, mismatch kondisi, KML/KMZ, tematik kosong, dan masalah lain.
+3. **Admin → Rumus Perhitungan**: atur kebijakan awal, bobot parameter, rumus internal, penalti, dan bobot komoditas.
+4. Klik **Simpan + Hitung Ulang**, atau buka **Admin → Scoring** untuk menghitung ulang ranking.
+5. **Pengguna → Dashboard**: baca ranking, filter wilayah, komponen skor, rekap, query builder, dan export.
+6. **Pengguna → Detail Koridor**: audit satu koridor.
+7. **Pengguna → Rumus Aktif**: baca penjelasan rumus yang sedang dipakai tanpa mengubah konfigurasi.
 """)
 
-st.header("3. Menu Pengguna")
-with st.expander("👤 Dashboard", expanded=True):
-    st.markdown("""
-    Menu ini dipakai untuk membaca hasil akhir. Fitur utamanya:
-    - **Filter sidebar**: provinsi, kabupaten/kota, kategori, tematik, jenis produksi, rentang final score, pencarian teks.
-    - **Overview**: grafik top ranking, komposisi kategori, rekap provinsi, koridor penalti tertinggi, biaya aktif 0, dan rekap jenis produksi.
-    - **Ranking**: daftar urutan dan nilai setiap koridor. Kolom bisa dipilih.
-    - **Komponen Skor**: melihat kontribusi setiap parameter terhadap skor.
-    - **Rekap Wilayah**: rekap per provinsi, kabupaten/kota, atau gabungan.
-    - **Query Builder**: filter angka dan teks tanpa SQL.
-    - **Export**: download CSV/Excel hasil filter.
+st.warning("Ranking pertama setelah upload jangan langsung dianggap final. Cek validasi, bobot rumus, biaya aktif, dan top ranking dulu.")
 
-    Hint: filter sidebar memengaruhi semua tab dan file export. Kalau data terlihat sedikit, cek dulu apakah ada filter yang masih aktif.
+st.header("3. Penjelasan menu Pengguna")
+with st.expander("🛣️ Dashboard", expanded=True):
+    st.markdown("""
+    **Tujuan:** melihat hasil ranking dan melakukan eksplorasi cepat.
+
+    Fitur utama:
+    - filter provinsi, kabupaten/kota, kategori, tematik, jenis produksi, rentang final score, dan pencarian teks;
+    - tab **Overview** untuk ringkasan umum;
+    - tab **Ranking** untuk daftar urutan koridor;
+    - tab **Komponen Skor** untuk melihat skor per parameter;
+    - tab **Rekap Wilayah** untuk rekap provinsi/kabupaten;
+    - tab **Query Builder** untuk filter tanpa SQL;
+    - tab **Export** untuk download hasil filter.
+
+    Hint: jika tabel kosong, biasanya karena filter masih aktif. Reset filter atau longgarkan rentang final score.
     """)
 
 with st.expander("🔎 Detail Koridor", expanded=False):
     st.markdown("""
-    Menu ini untuk melihat satu koridor. Cocok untuk menjawab:
-    - kenapa ranking koridor tinggi/rendah;
-    - parameter mana yang paling menaikkan skor;
-    - apakah penalti data menurunkan skor;
-    - biaya aktif berasal dari Excel atau hitungan kondisi jalan;
-    - panjang KML/KMZ memakai data asli atau fallback panjang koridor.
+    **Tujuan:** audit satu koridor.
 
-    Nilai angka di menu ini sudah memakai format Indonesia: ribuan titik, desimal koma, dan persen bila kolom memang persentase.
+    Gunakan menu ini untuk menjawab:
+    - mengapa koridor mendapat skor tinggi/rendah;
+    - berapa `raw_score`, penalti, dan `final_score`;
+    - biaya mana yang dipakai scoring: Excel atau kondisi jalan;
+    - bagaimana kondisi jalan dinormalisasi;
+    - apa saja jenis produksi, produksi tertimbang, dan luas lahan tertimbang;
+    - parameter mana yang paling besar kontribusinya.
+
+    Hint: baca **Biaya Aktif**, bukan biaya Excel mentah, karena biaya aktif adalah biaya yang dipakai scoring.
     """)
 
-st.header("4. Menu Admin")
+with st.expander("📑 Rumus Aktif", expanded=False):
+    st.markdown("""
+    **Tujuan:** membaca rumus scoring yang sedang berlaku dengan bahasa yang lebih mudah.
+
+    Menu ini berisi:
+    - daftar parameter aktif;
+    - bobot asli dan bobot normalisasi;
+    - tipe skor yang dipakai;
+    - kolom sumber;
+    - settings_json yang sedang berlaku;
+    - penjelasan ekonomi komoditas;
+    - daftar penalti data;
+    - audit hasil scoring.
+
+    Hint: menu ini hanya untuk membaca. Mengubah rumus dilakukan di **Admin → Rumus Perhitungan**.
+    """)
+
+st.header("4. Penjelasan menu Admin")
 with st.expander("📤 Upload Data", expanded=False):
     st.markdown("""
-    Upload Excel agregasi koridor. Setelah diproses, aplikasi menyimpan:
-    - `data/processed/koridor_raw.parquet` sebagai data mentah;
-    - `data/processed/koridor_score.parquet` sebagai hasil scoring.
+    **Tujuan:** memasukkan Excel agregasi koridor ke aplikasi.
 
-    Hint: file sebaiknya sudah level koridor. Jika masih level ruas, data produksi/fasilitas bisa dobel hitung.
+    File yang ideal adalah file level koridor, bukan level ruas. Jika file masih level ruas, fasilitas, produksi, luas lahan, dan biaya bisa dobel hitung.
+
+    Setelah upload, aplikasi menyimpan:
+    - `data/processed/koridor_raw.parquet` untuk data mentah;
+    - `data/processed/koridor_score.parquet` untuk hasil scoring setelah dihitung.
+
+    Hint: di Streamlit Cloud gratis, file upload bisa hilang saat app reboot. Untuk uji rumus tidak masalah, untuk produksi perlu storage permanen.
     """)
 
 with st.expander("🧪 Validasi Data", expanded=False):
     st.markdown("""
-    Menu ini membaca kualitas data sesuai setting terbaru di **Rumus Perhitungan**. Contoh catatan:
-    - panjang koridor kosong/0;
-    - biaya aktif kosong/0;
-    - nama koridor kosong;
-    - panjang KML/KMZ kosong;
-    - total kondisi jalan tidak sama dengan panjang koridor;
-    - tematik kosong.
+    **Tujuan:** menemukan masalah data sebelum ranking dipercaya.
 
-    Catatan validasi bukan selalu salah. Contoh: jika KML/KMZ diatur memakai fallback panjang koridor, aplikasi akan menunjukkan perlakuan khusus itu.
+    Contoh validasi:
+    - nama koridor kosong;
+    - panjang koridor kosong/0;
+    - biaya aktif 0;
+    - total kondisi jalan tidak sama dengan panjang;
+    - panjang KML/KMZ kosong;
+    - tematik kosong;
+    - data produksi/lahan kosong.
+
+    Catatan validasi bukan selalu kesalahan mutlak. Beberapa bisa dikesampingkan lewat kebijakan di **Rumus Perhitungan**, misalnya KML kosong boleh memakai Panjang Koridor.
     """)
 
 with st.expander("🧮 Rumus Perhitungan", expanded=True):
     st.markdown("""
-    Menu ini mengatur logika scoring. Bagian penting:
+    **Tujuan:** mengatur semua logika scoring.
 
-    **A. Kebijakan awal perhitungan**
-    - Penalti kualitas data aktif/tidak.
-    - KML/KMZ kosong: dipenalti, diabaikan, atau memakai panjang koridor.
-    - Kondisi jalan: angka mentah atau dinormalisasi terhadap panjang koridor.
-    - Biaya: dari Excel, dari kondisi jalan, atau fallback jika Excel kosong.
-    - Nama koridor kosong: wajib atau pakai No. Koridor.
-    - Tematik kosong: hanya skor turun atau skor turun + penalti.
+    Bagian penting:
+    - **Kebijakan awal perhitungan**: penalti aktif/tidak, fallback KML/KMZ, normalisasi kondisi, sumber biaya, nama koridor kosong, tematik kosong.
+    - **Editor Rumus / Parameter**: daftar parameter penilaian.
+    - **Editor Penalti**: aturan pengurang skor akhir.
 
-    **B. Editor Rumus / Parameter**
-    - `active`: parameter ikut dinilai atau tidak.
-    - `weight`: bobot parameter. Total bobot tidak wajib 100 karena otomatis dinormalisasi.
-    - `formula_type`: jenis rumus.
-    - `source_columns`: kolom yang dibaca.
-    - `settings_json`: angka internal rumus.
-
-    Contoh mengubah rumus kondisi jalan:
-    ```json
-    {"weights":{"persen_rusak_berat":1.3,"persen_rusak_ringan":0.7,"persen_sedang":0.15},"clip_min":0,"clip_max":100}
-    ```
-
-    **C. Parameter Ekonomi Komoditas**
-    Versi baru membaca `Jenis Produksi 1-4`, `Jumlah Produksi 1-4`, dan `Luas Lahan 1-4`. Ada tiga parameter default:
-    - `Prioritas Jenis Produksi`: menilai jenis komoditasnya saja, misalnya Padi bisa lebih tinggi dari Jagung.
-    - `Jumlah Produksi Tertimbang Komoditas`: jumlah produksi dikalikan bobot komoditas, lalu dinormalisasi.
-    - `Luas Lahan Tertimbang Komoditas`: luas lahan dikalikan bobot komoditas, lalu dinormalisasi.
-
-    Contoh `settings_json` bobot komoditas:
-    ```json
-    {"commodity_weights":{"Padi":1.5,"Jagung":1.2,"Kelapa Sawit":1.15},"default_weight":1.0,"cap_quantile":0.95,"missing_score":0}
-    ```
-    Jika jenis produksi tidak ada di daftar `commodity_weights`, aplikasi memakai `default_weight`.
-
-    **D. Editor Penalti**
-    Penalti mengurangi `final_score` bila data kosong/tidak wajar.
-
-    Hint: format `settings_json` harus JSON valid. Pakai tanda kutip dua `"`, bukan kutip satu `'`.
+    Kolom penting di editor rumus:
+    | Kolom | Fungsi |
+    |---|---|
+    | `id` | Kode unik parameter. Jangan pakai spasi. Contoh: `sppg`, `biaya_per_km`. |
+    | `active` | Centang jika parameter ikut dinilai. |
+    | `group` | Kelompok indikator, misalnya Ekonomi, Kondisi, Konektivitas. |
+    | `name` | Nama yang tampil di dashboard. |
+    | `formula_type` | Jenis rumus. Pilih dari daftar yang tersedia. |
+    | `source_columns` | Kolom sumber dari Excel/hasil olahan. Jika lebih dari satu, pisahkan koma. |
+    | `weight` | Bobot parameter. Total bobot tidak wajib 100 karena sistem menormalkan otomatis. |
+    | `cap_quantile` | Batas potong outlier untuk normalisasi angka. Umumnya 0,95. |
+    | `settings_json` | Pengaturan internal rumus dalam format JSON. |
+    | `description` | Catatan penjelasan parameter. |
     """)
 
 with st.expander("⚖️ Scoring", expanded=False):
     st.markdown("""
-    Menu ini menghitung ulang ranking dari data raw + konfigurasi rumus yang tersimpan.
+    **Tujuan:** menghitung ulang ranking dari data dan konfigurasi terakhir.
 
-    Gunakan menu ini bila:
-    - baru upload data;
-    - baru mengubah rumus;
-    - baru mengubah penalti;
-    - ranking di dashboard belum berubah setelah edit.
+    Gunakan menu ini setelah:
+    - upload data baru;
+    - mengubah bobot;
+    - mengubah `settings_json`;
+    - mengubah penalti;
+    - mengubah biaya berbasis kondisi;
+    - mengubah bobot komoditas.
     """)
 
 with st.expander("🦆 Query DuckDB", expanded=False):
     st.markdown("""
-    Menu ini untuk admin/pengolah data yang ingin SQL langsung ke file Parquet.
+    **Tujuan:** analisis SQL langsung untuk admin/data analyst.
 
-    Contoh:
+    Contoh query:
     ```sql
     SELECT Provinsi, COUNT(*) AS jumlah_koridor, AVG(final_score) AS avg_score
     FROM read_parquet('data/processed/koridor_score.parquet')
@@ -147,10 +163,165 @@ with st.expander("🦆 Query DuckDB", expanded=False):
     ORDER BY avg_score DESC;
     ```
 
-    Hint: jika nama kolom mengandung spasi, gunakan tanda kutip ganda pada SQL.
+    Hint: jika nama kolom mengandung spasi, gunakan tanda kutip ganda. Contoh: `"Panjang (KM)"`.
     """)
 
-st.header("5. Format angka yang digunakan")
+st.header("5. Cara membuat rumus baru di editor rumus")
+st.markdown("""
+Ikuti urutan ini. Jangan langsung mengetik rumus bebas seperti Excel. Aplikasi memakai **tipe rumus terkendali** agar aman dan konsisten.
+
+### Langkah A — Tentukan tujuan parameter
+Contoh tujuan:
+- menilai apakah koridor terhubung kawasan industri;
+- menilai jumlah penduduk terlayani;
+- menilai biaya per penerima manfaat;
+- menilai jumlah SPPG;
+- menilai produksi padi lebih tinggi dari jagung.
+
+### Langkah B — Pastikan kolom sumber ada
+Buka bagian **Kolom yang tersedia untuk rumus** di menu Rumus Perhitungan. Cari nama kolomnya. Nama kolom harus sama persis.
+
+### Langkah C — Pilih `formula_type`
+| Kondisi data | Pilih formula_type |
+|---|---|
+| Kolom berisi YA/TIDAK | `yes_no` |
+| Kolom harus terisi | `exists` atau `completeness` |
+| Angka besar lebih baik | `numeric_higher` |
+| Angka kecil lebih baik | `numeric_lower` |
+| Biaya kecil lebih baik, tapi 0/kosong tidak boleh bagus | `numeric_lower_positive` |
+| Ranking angka kecil lebih baik | `rank_lower` |
+| Beberapa kolom dijumlah dengan bobot | `weighted_sum_higher` |
+| Kondisi RB/RR/Sedang | `weighted_percent_sum` |
+| Produksi dikalikan bobot komoditas | `production_amount_by_type` |
+| Luas lahan dikalikan bobot komoditas | `land_area_by_type` |
+| Produksi + lahan + bobot komoditas | `production_land_by_type` |
+
+### Langkah D — Isi baris baru
+Contoh parameter jumlah SPPG:
+```text
+id             : sppg_khusus
+group          : Fasilitas Publik
+name           : Jumlah SPPG
+formula_type   : numeric_higher
+source_columns : Faslilitas Umum Dilewati - SPPG
+weight         : 8
+cap_quantile   : 0.95
+settings_json  : {"cap_quantile":0.95,"missing_score":0}
+description    : Semakin banyak SPPG dilayani, skor semakin tinggi.
+```
+
+### Langkah E — Klik Simpan + Hitung Ulang
+Jika ada error JSON atau kolom sumber salah, aplikasi akan menolak simpan dan menampilkan pesan error.
+""")
+
+st.header("6. Contoh rumus baru siap copy")
+with st.expander("Contoh 1 — Parameter YA/TIDAK: Kawasan Industri", expanded=False):
+    st.code('''id             : kawasan_industri
+group          : Ekonomi
+name           : Terhubung Kawasan Industri
+formula_type   : yes_no
+source_columns : Kawasan Industri
+weight         : 8
+settings_json  : {"true_values":["YA","YES","Y","TRUE","1","ADA"],"true_score":100,"false_score":0}
+description    : YA mendapat skor 100; selain itu 0.''')
+
+with st.expander("Contoh 2 — Angka besar lebih baik: Penduduk Terlayani", expanded=False):
+    st.code('''id             : penduduk_terlayani
+group          : Pelayanan Publik
+name           : Jumlah Penduduk Terlayani
+formula_type   : numeric_higher
+source_columns : Jumlah Penduduk Terlayani
+weight         : 12
+cap_quantile   : 0.95
+settings_json  : {"cap_quantile":0.95,"missing_score":0}
+description    : Semakin banyak penduduk terlayani, skor semakin tinggi.''')
+
+with st.expander("Contoh 3 — Biaya kecil lebih baik: Biaya per Penerima Manfaat", expanded=False):
+    st.code('''id             : biaya_per_penerima
+group          : VfM
+name           : Biaya per Penerima Manfaat
+formula_type   : numeric_lower_positive
+source_columns : Biaya per Penerima Manfaat
+weight         : 10
+cap_quantile   : 0.95
+settings_json  : {"cap_quantile":0.95,"zero_or_missing_score":0}
+description    : Biaya lebih rendah lebih baik; nilai 0/kosong diberi skor 0.''')
+
+with st.expander("Contoh 4 — Fasilitas tertimbang", expanded=False):
+    st.code('''id             : fasilitas_prioritas
+group          : Fasilitas Publik
+name           : Fasilitas Prioritas Tertimbang
+formula_type   : weighted_sum_higher
+source_columns : Faslilitas Umum Dilewati - Pendidikan, Faslilitas Umum Dilewati - Kesehatan, Faslilitas Umum Dilewati - SPPG
+weight         : 12
+cap_quantile   : 0.95
+settings_json  : {"weights":{"Faslilitas Umum Dilewati - Pendidikan":1,"Faslilitas Umum Dilewati - Kesehatan":2,"Faslilitas Umum Dilewati - SPPG":4},"cap_quantile":0.95}
+description    : Pendidikan x1, kesehatan x2, SPPG x4, lalu dinormalisasi 0-100.''')
+
+with st.expander("Contoh 5 — Produksi berbobot komoditas", expanded=False):
+    st.code('''id             : produksi_pangan_prioritas
+group          : Ekonomi Komoditas
+name           : Produksi Pangan Prioritas
+formula_type   : production_amount_by_type
+source_columns : Jenis Produksi 1, Jumlah Produksi 1 (Ton/Tahun), Jenis Produksi 2, Jumlah Produksi 2 (Ton/Tahun), Jenis Produksi 3, Jumlah Produksi 3 (Ton/Tahun), Jenis Produksi 4, Jumlah Produksi 4 (Ton/Tahun)
+weight         : 10
+cap_quantile   : 0.95
+settings_json  : {"commodity_weights":{"Padi":1.8,"Jagung":1.3,"Kedelai":1.4,"Cabai":1.2},"default_weight":1.0,"cap_quantile":0.95,"missing_score":0}
+description    : Jumlah produksi dikalikan bobot jenis komoditas, lalu dinormalisasi.''')
+
+st.header("7. Aturan JSON yang wajib benar")
+st.markdown("""
+`settings_json` harus valid JSON.
+
+Benar:
+```json
+{"commodity_weights":{"Padi":1.5,"Jagung":1.2},"default_weight":1.0}
+```
+
+Salah:
+```text
+{'commodity_weights': {'Padi': 1.5}}
+```
+
+Kesalahan umum:
+- memakai kutip satu `'`, harus kutip dua `"`;
+- ada koma terakhir sebelum `}`;
+- nama kolom salah ketik;
+- `formula_type` tidak sesuai pilihan;
+- `weight` aktif semuanya 0.
+""")
+
+st.header("8. Cara membaca ekonomi komoditas")
+st.markdown("""
+Parameter ekonomi komoditas membaca empat slot:
+
+```text
+Jenis Produksi 1 + Jumlah Produksi 1 + Luas Lahan 1
+Jenis Produksi 2 + Jumlah Produksi 2 + Luas Lahan 2
+Jenis Produksi 3 + Jumlah Produksi 3 + Luas Lahan 3
+Jenis Produksi 4 + Jumlah Produksi 4 + Luas Lahan 4
+```
+
+Rumus produksi tertimbang:
+```text
+produksi_tertimbang = Σ(jumlah_produksi_i × bobot_jenis_produksi_i)
+```
+
+Rumus luas lahan tertimbang:
+```text
+lahan_tertimbang = Σ(luas_lahan_i × bobot_jenis_produksi_i)
+```
+
+Contoh:
+```text
+Padi 1.000 ton × 1,50 = 1.500
+Jagung 1.000 ton × 1,20 = 1.200
+```
+
+Artinya jumlah produksi sama bisa menghasilkan skor berbeda bila jenis komoditasnya berbeda.
+""")
+
+st.header("9. Format angka yang digunakan")
 st.markdown("""
 Tampilan aplikasi memakai format Indonesia:
 
@@ -163,31 +334,19 @@ Tampilan aplikasi memakai format Indonesia:
 | Biaya | `1.234,56` Rp miliar |
 | Score | `78,25` |
 
-Catatan: data asli di Parquet dan hasil export tetap numerik agar bisa dihitung lagi. Format Indonesia hanya untuk tampilan layar.
+Data asli di Parquet dan export tetap numerik agar bisa dihitung lagi. Format Indonesia hanya untuk tampilan layar.
 """)
 
-st.header("6. Cara membaca final score")
-st.code("final_score = raw_score - (data_quality_penalty × penalty_factor)")
+st.header("10. Checklist sebelum ranking dipakai")
 st.markdown("""
-- `raw_score`: gabungan semua parameter aktif.
-- `data_quality_penalty`: penalti kualitas data.
-- `penalty_factor`: pengali penalti, misalnya 0,30.
-- `final_score`: skor akhir untuk ranking.
+Sebelum ranking dipakai untuk bahan keputusan, cek:
 
-Jika penalti kualitas data dimatikan, rumus menjadi:
-```text
-final_score = raw_score
-```
-Namun parameter kosong tetap bisa membuat skor parameter tersebut menjadi 0.
-""")
-
-st.header("7. Checklist sebelum ranking dipakai")
-st.markdown("""
-Sebelum ranking dipakai untuk bahan keputusan, cek minimal:
 1. Apakah biaya aktif masih banyak yang 0?
-2. Apakah tematik kosong masih banyak?
-3. Apakah panjang kondisi sudah normal terhadap panjang koridor?
-4. Apakah KML/KMZ kosong memang ingin diabaikan atau memakai panjang koridor?
-5. Apakah bobot jenis produksi sudah sesuai kebijakan? Jangan langsung menganggap bobot default sebagai bobot final.
-6. Apakah top 20 masuk akal secara teknis, ekonomi, konektivitas, dan layanan publik?
+2. Apakah sumber biaya sudah sesuai: Excel atau kondisi jalan?
+3. Apakah panjang kondisi sudah dinormalisasi terhadap panjang koridor?
+4. Apakah KML/KMZ kosong ingin dipenalti, diabaikan, atau memakai panjang koridor?
+5. Apakah tematik kosong diperlakukan sebagai masalah?
+6. Apakah bobot jenis produksi sudah sesuai kebijakan? Bobot default bukan bobot final.
+7. Apakah top 20 masuk akal secara teknis, ekonomi, konektivitas, dan pelayanan publik?
+8. Apakah ada parameter yang double count, misalnya ekonomi lama aktif bersamaan dengan ekonomi komoditas gabungan?
 """)

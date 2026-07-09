@@ -7,6 +7,7 @@ $required = @(
   "pages\10_Dashboard_Pengguna.py",
   "pages\11_Detail_Koridor.py",
   "pages\12_Panduan_Aplikasi.py",
+  "pages\13_Penjelasan_Rumus_Aktif.py",
   "pages\90_Upload_Data.py",
   "pages\91_Validasi_Data.py",
   "pages\92_Rumus_Perhitungan.py",

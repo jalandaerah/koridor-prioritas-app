@@ -30,7 +30,8 @@ if st.button("Hitung Ulang Ranking", type="primary"):
     base_df = load_parquet(RAW_PARQUET if has_raw_data() else SCORED_PARQUET)
     rescored = compute_scores_dynamic(base_df, params, penalty_factor=float(settings.get("penalty_factor", 0.30)), data_quality_rules=rules, scoring_settings=settings)
     save_parquet(rescored, SCORED_PARQUET)
-    st.success("Skor berhasil dihitung ulang memakai rumus dinamis.")
+    st.cache_data.clear()
+    st.success("Skor berhasil dihitung ulang memakai rumus dinamis, biaya aktif, dan threshold kategori terbaru.")
     scored_df = rescored
 
 st.subheader("Ringkasan Score")

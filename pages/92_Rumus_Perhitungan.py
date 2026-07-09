@@ -10,12 +10,12 @@ from scoring.io import (
 )
 from scoring.scoring_engine import (
     FORMULA_TYPES, compute_indicators, compute_scores_dynamic,
-    build_formula_summary, get_formula_catalog
+    build_formula_summary, get_formula_catalog, describe_category_thresholds
 )
 from scoring.formatting import format_dataframe_for_display, format_metric_value
 
 st.title("🔐 Admin - Rumus Perhitungan Dinamis")
-st.info("Di menu ini Bapak bisa mengubah rumus, bobot, checklist aktif/nonaktif, angka internal seperti RB/RR/Sedang, bobot fasilitas, bobot produksi-lahan, nilai YA/TIDAK, dan penalti kualitas data. Setelah edit, klik **Simpan + Hitung Ulang**.")
+st.info("Di menu ini Bapak bisa mengubah rumus, bobot, checklist aktif/nonaktif, angka internal seperti RB/RR/Sedang, bobot fasilitas, bobot produksi-lahan, nilai YA/TIDAK, penalti kualitas data, sumber biaya, dan threshold kategori prioritas. Setelah edit, klik **Simpan + Hitung Ulang**.")
 
 if not has_raw_data() and not has_scored_data():
     st.warning("Belum ada data. Upload dan proses Excel dulu.")
@@ -53,7 +53,7 @@ with st.expander("📘 Katalog tipe rumus dan contoh settings_json", expanded=Fa
     st.dataframe(format_dataframe_for_display(get_formula_catalog()), use_container_width=True, height=420)
 
 st.subheader("⚙️ Pengaturan Kebijakan Awal Perhitungan")
-st.caption("Pengaturan ini mengubah cara aplikasi menyiapkan data sebelum rumus scoring dihitung. Setelah diubah, klik Simpan + Hitung Ulang.")
+st.caption("Pengaturan ini mengubah cara aplikasi menyiapkan data sebelum rumus scoring dihitung. Agar Dashboard berubah, klik Simpan + Hitung Ulang, bukan hanya Simpan Konfigurasi.")
 
 with st.expander("Apa fungsi pengaturan ini?", expanded=False):
     st.markdown("""
@@ -172,6 +172,46 @@ with zc3:
         help="Dipakai hanya jika estimasi biaya kondisi masih 0 dan panjang koridor > 0.",
     )
 
+st.markdown("---")
+st.subheader("🎚️ Threshold Kategori Prioritas")
+st.caption("Batas kategori dipakai setelah final_score dihitung. Ubah ini kalau kategori Rendah/Sedang/Tinggi/Sangat Tinggi terasa terlalu jomplang.")
+thresholds = settings.get("category_thresholds", {}) or {}
+tc1, tc2, tc3 = st.columns(3)
+with tc1:
+    threshold_rendah_max = st.number_input(
+        "Batas maksimum Rendah",
+        min_value=0.0, max_value=100.0,
+        value=float(thresholds.get("rendah_max", 50.0)),
+        step=1.0, format="%.2f",
+        help="Score <= nilai ini masuk kategori Rendah.",
+    )
+with tc2:
+    threshold_sedang_max = st.number_input(
+        "Batas maksimum Sedang",
+        min_value=0.0, max_value=100.0,
+        value=float(thresholds.get("sedang_max", 65.0)),
+        step=1.0, format="%.2f",
+        help="Score di atas batas Rendah sampai nilai ini masuk kategori Sedang.",
+    )
+with tc3:
+    threshold_tinggi_max = st.number_input(
+        "Batas maksimum Tinggi",
+        min_value=0.0, max_value=100.0,
+        value=float(thresholds.get("tinggi_max", 80.0)),
+        step=1.0, format="%.2f",
+        help="Score di atas batas Sedang sampai nilai ini masuk kategori Tinggi. Di atas ini masuk Sangat Tinggi.",
+    )
+
+threshold_preview = pd.DataFrame([
+    {"Kategori": "Rendah", "Aturan": f"final_score <= {threshold_rendah_max:g}"},
+    {"Kategori": "Sedang", "Aturan": f"{threshold_rendah_max:g} < final_score <= {threshold_sedang_max:g}"},
+    {"Kategori": "Tinggi", "Aturan": f"{threshold_sedang_max:g} < final_score <= {threshold_tinggi_max:g}"},
+    {"Kategori": "Sangat Tinggi", "Aturan": f"final_score > {threshold_tinggi_max:g}"},
+])
+st.dataframe(threshold_preview, use_container_width=True, hide_index=True)
+if not (0 <= threshold_rendah_max < threshold_sedang_max < threshold_tinggi_max <= 100):
+    st.warning("Threshold belum valid. Syarat: Rendah < Sedang < Tinggi dan semuanya 0–100.")
+
 new_settings = {
     "use_data_quality_penalty": bool(use_data_quality_penalty),
     "penalty_factor": float(penalty_factor) if use_data_quality_penalty else 0.0,
@@ -189,6 +229,11 @@ new_settings = {
     "condition_cost_zero_minimum_miliar": float(condition_cost_zero_minimum_miliar),
     "name_policy": name_policy,
     "tematik_missing_policy": tematik_missing_policy,
+    "category_thresholds": {
+        "rendah_max": float(threshold_rendah_max),
+        "sedang_max": float(threshold_sedang_max),
+        "tinggi_max": float(threshold_tinggi_max),
+    },
 }
 
 st.code("final_score = raw_score - (data_quality_penalty × penalty_factor)")
@@ -442,6 +487,8 @@ def validate_rules(new_rules: list[dict], parse_errors: list[str]) -> list[str]:
 new_params, parse_errors = table_to_params(edited)
 new_rules, rule_parse_errors = table_to_rules(edited_rules)
 errors = validate_params(new_params, parse_errors) + validate_rules(new_rules, rule_parse_errors)
+if not (0 <= threshold_rendah_max < threshold_sedang_max < threshold_tinggi_max <= 100):
+    errors.append("Threshold kategori prioritas tidak valid. Harus 0 <= Rendah < Sedang < Tinggi <= 100.")
 
 with st.expander("🔎 Diagnosa sementara biaya 0", expanded=False):
     try:
@@ -456,9 +503,9 @@ with st.expander("🔎 Diagnosa sementara biaya 0", expanded=False):
 
 c1, c2, c3, c4 = st.columns([1, 1, 1.2, 1.2])
 with c1:
-    save_clicked = st.button("💾 Simpan Rumus", type="primary")
+    save_clicked = st.button("💾 Simpan Konfigurasi Saja")
 with c2:
-    recalc_clicked = st.button("🔁 Simpan + Hitung Ulang")
+    recalc_clicked = st.button("🔁 Simpan + Hitung Ulang", type="primary")
 with c3:
     st.download_button(
         "Download JSON Rumus",
@@ -489,12 +536,14 @@ if save_clicked or recalc_clicked:
     save_formula_params(new_params)
     save_data_quality_rules(new_rules)
     save_scoring_settings(new_settings)
-    st.success(f"Rumus tersimpan ke `{FORMULA_PARAMS_JSON}` dan penalti tersimpan ke `{DATA_QUALITY_RULES_JSON}`. Backup otomatis dibuat dengan ekstensi `.bak`.")
+    st.cache_data.clear()
+    st.success(f"Konfigurasi tersimpan. Jika Bapak hanya klik Simpan Konfigurasi Saja, Dashboard belum berubah sampai klik Simpan + Hitung Ulang atau Admin → Scoring.")
 
 if recalc_clicked:
     if errors:
         st.stop()
     scored = compute_scores_dynamic(df, new_params, penalty_factor=float(new_settings.get("penalty_factor", 0.0)), data_quality_rules=new_rules, scoring_settings=new_settings)
     save_parquet(scored, SCORED_PARQUET)
-    st.success("Ranking berhasil dihitung ulang memakai rumus terbaru.")
+    st.cache_data.clear()
+    st.success("Ranking berhasil dihitung ulang memakai rumus, biaya aktif, penalti, dan threshold kategori terbaru.")
     st.dataframe(format_dataframe_for_display(scored.sort_values("final_score", ascending=False).head(50)), use_container_width=True, height=420)

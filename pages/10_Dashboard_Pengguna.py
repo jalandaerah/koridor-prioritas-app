@@ -4,7 +4,7 @@ from io import BytesIO
 import pandas as pd
 import streamlit as st
 
-from scoring.io import has_scored_data, load_parquet
+from scoring.io import has_scored_data, load_parquet, SCORED_PARQUET
 from scoring.schema import COL, PRODUCTION_TYPE_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS
 from scoring.scoring_engine import export_columns, get_score_component_columns
 from scoring.formatting import format_dataframe_for_display, format_metric_value
@@ -16,8 +16,8 @@ if not has_scored_data():
     st.warning("Belum ada data scoring. Buka halaman Upload Data lalu proses Excel agregasi koridor.")
     st.stop()
 
-@st.cache_data(show_spinner=False)
-def load_data_cached() -> pd.DataFrame:
+def load_data_fresh() -> pd.DataFrame:
+    # Jangan cache tanpa kunci mtime. Biaya aktif, threshold, dan kategori harus langsung berubah setelah Admin → Simpan + Hitung Ulang.
     return load_parquet()
 
 
@@ -35,32 +35,83 @@ def safe_unique_many(df: pd.DataFrame, cols: list[str]) -> list:
     return sorted([x for x in set(vals) if x and x.lower() not in {"nan", "none", "-"}])
 
 
+def clean_category_value(value) -> str:
+    """Normalize text category values for grouping/display."""
+    if pd.isna(value):
+        return ""
+    text = str(value).replace("\u00a0", " ").strip()
+    if text.lower() in {"", "nan", "none", "null", "-", "0", "0.0"}:
+        return ""
+    return text
+
+
 def production_summary_table(df: pd.DataFrame) -> pd.DataFrame:
+    """Build a long-form production summary from Jenis Produksi 1-4.
+
+    Fallback: if slot columns are absent but the main `Jenis Produksi` column exists,
+    the function still creates a summary from that main column.
+    """
     rows = []
     for i, (type_col, prod_col, land_col) in enumerate(zip(PRODUCTION_TYPE_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS), start=1):
         if type_col not in df.columns:
             continue
+        jenis = df[type_col].map(clean_category_value)
         tmp = pd.DataFrame({
-            "Jenis Produksi": df[type_col].fillna("").astype(str).str.strip(),
+            "Jenis Produksi": jenis,
+            "Slot": f"Produksi {i}",
             "Jumlah Produksi": pd.to_numeric(df[prod_col], errors="coerce").fillna(0) if prod_col in df.columns else 0,
             "Luas Lahan": pd.to_numeric(df[land_col], errors="coerce").fillna(0) if land_col in df.columns else 0,
             "Final Score": pd.to_numeric(df.get("final_score"), errors="coerce"),
             "ID Koridor": df[COL["id_koridor"]] if COL["id_koridor"] in df.columns else df.index,
         })
         tmp = tmp[tmp["Jenis Produksi"].ne("")]
-        rows.append(tmp)
+        if len(tmp):
+            rows.append(tmp)
+
+    # Fallback kalau file hanya punya kolom utama Jenis Produksi dan belum punya slot 1-4.
+    if not rows and COL["jenis_produksi"] in df.columns:
+        jenis = df[COL["jenis_produksi"]].map(clean_category_value)
+        tmp = pd.DataFrame({
+            "Jenis Produksi": jenis,
+            "Slot": "Jenis Produksi Utama",
+            "Jumlah Produksi": pd.to_numeric(df.get("produksi_total_ton_tahun", 0), errors="coerce").fillna(0) if "produksi_total_ton_tahun" in df.columns else 0,
+            "Luas Lahan": pd.to_numeric(df.get("luas_lahan_total_ha", 0), errors="coerce").fillna(0) if "luas_lahan_total_ha" in df.columns else 0,
+            "Final Score": pd.to_numeric(df.get("final_score"), errors="coerce"),
+            "ID Koridor": df[COL["id_koridor"]] if COL["id_koridor"] in df.columns else df.index,
+        })
+        tmp = tmp[tmp["Jenis Produksi"].ne("")]
+        if len(tmp):
+            rows.append(tmp)
+
     if not rows:
         return pd.DataFrame()
     allp = pd.concat(rows, ignore_index=True)
-    allp = allp[~allp["Jenis Produksi"].str.lower().isin(["nan", "none", "-"])]
+    allp = allp[allp["Jenis Produksi"].map(clean_category_value).ne("")]
     if allp.empty:
         return pd.DataFrame()
-    return allp.groupby("Jenis Produksi", dropna=False).agg(
+    out = allp.groupby("Jenis Produksi", dropna=False).agg(
         jumlah_koridor=("ID Koridor", "nunique"),
+        jumlah_slot_terisi=("Slot", "size"),
         total_produksi_ton_tahun=("Jumlah Produksi", "sum"),
         total_luas_lahan_ha=("Luas Lahan", "sum"),
         avg_final_score=("Final Score", "mean"),
-    ).reset_index().sort_values("total_produksi_ton_tahun", ascending=False)
+    ).reset_index()
+    return out.sort_values("total_produksi_ton_tahun", ascending=False)
+
+
+def show_production_chart(prod_sum: pd.DataFrame, metric_col: str, title: str, top_k: int = 20):
+    """Display a production bar chart with numeric source values, not formatted strings."""
+    if prod_sum.empty or metric_col not in prod_sum.columns:
+        st.info("Data grafik belum tersedia.")
+        return
+    chart_df = prod_sum[["Jenis Produksi", metric_col]].copy()
+    chart_df[metric_col] = pd.to_numeric(chart_df[metric_col], errors="coerce").fillna(0)
+    chart_df = chart_df.sort_values(metric_col, ascending=False).head(top_k)
+    if chart_df.empty or chart_df[metric_col].sum() == 0:
+        st.info("Nilai grafik masih 0 pada filter ini.")
+        return
+    st.caption(title)
+    st.bar_chart(chart_df.set_index("Jenis Produksi")[metric_col])
 
 
 def to_excel_bytes(df: pd.DataFrame, sheet_name: str = "ranking") -> bytes:
@@ -90,13 +141,19 @@ def to_excel_bytes(df: pd.DataFrame, sheet_name: str = "ranking") -> bytes:
     return output.getvalue()
 
 
-df = load_data_cached()
+df = load_data_fresh()
 
 # Ensure expected score cols exist.
 for c in ["final_score", "raw_score", "data_quality_penalty"]:
     if c not in df.columns:
         st.error(f"Kolom `{c}` belum ada. Hitung ulang scoring dulu.")
         st.stop()
+
+with st.expander("⚙️ Setting scoring yang sedang dipakai dashboard", expanded=False):
+    setting_cols = [c for c in ["cost_mode", "biaya_sumber", "use_data_quality_penalty", "penalty_factor", "threshold_rendah_max", "threshold_sedang_max", "threshold_tinggi_max", "kml_missing_policy", "condition_length_mode"] if c in df.columns]
+    if setting_cols:
+        st.dataframe(format_dataframe_for_display(df[setting_cols].head(1).T.reset_index().rename(columns={"index":"setting", 0:"nilai"})), use_container_width=True, hide_index=True)
+    st.caption("Jika baru mengubah rumus/biaya/threshold, pastikan sudah klik Admin → Rumus Perhitungan → Simpan + Hitung Ulang. Dashboard membaca file scoring terbaru tanpa cache.")
 
 with st.sidebar:
     st.header("🔎 Filter Dashboard")
@@ -211,13 +268,30 @@ with tab_overview:
                 zero_cols = [c for c in [COL["provinsi"], COL["kabupaten"], "nama_koridor_display", COL["panjang"], "Baik", "Sedang", "Rusak Ringan", "Rusak Berat", "biaya_estimasi_kondisi_miliar", "biaya_aktif_miliar", "biaya_sumber", "biaya_nol_reason"] if c in zero.columns]
                 st.dataframe(format_dataframe_for_display(zero[zero_cols].head(50)), use_container_width=True, height=260)
 
-    st.subheader("Rekap Jenis Produksi")
+    st.subheader("Rekap dan Grafik Jenis Produksi")
     prod_sum = production_summary_table(f)
     if len(prod_sum):
-        st.caption("Rekap ini membaca Jenis Produksi 1-4, jumlah produksi, dan luas lahan. Bobot komoditas detail terlihat di kolom tertimbang setelah scoring dihitung ulang.")
-        st.dataframe(format_dataframe_for_display(prod_sum.head(50)), use_container_width=True, height=360)
+        st.caption("Membaca **Jenis Produksi 1-4**, jumlah produksi, dan luas lahan. Nama komoditas sekarang ditampilkan sebagai teks, bukan diformat sebagai angka.")
+        pt1, pt2, pt3, pt4, pt5 = st.tabs([
+            "📦 Produksi", "🌾 Luas Lahan", "🧭 Jumlah Koridor", "⭐ Rata-rata Score", "📋 Tabel"
+        ])
+        with pt1:
+            show_production_chart(prod_sum, "total_produksi_ton_tahun", "Top jenis produksi berdasarkan total produksi ton/tahun.", top_k=20)
+        with pt2:
+            show_production_chart(prod_sum, "total_luas_lahan_ha", "Top jenis produksi berdasarkan total luas lahan hektare.", top_k=20)
+        with pt3:
+            show_production_chart(prod_sum, "jumlah_koridor", "Top jenis produksi berdasarkan jumlah koridor yang melayani komoditas tersebut.", top_k=20)
+        with pt4:
+            score_chart = prod_sum.copy()
+            score_chart["avg_final_score"] = pd.to_numeric(score_chart["avg_final_score"], errors="coerce").fillna(0)
+            # Hindari komoditas dengan hanya satu-dua slot kecil terlalu mendominasi grafik rata-rata score.
+            min_koridor_score = st.number_input("Minimal jumlah koridor untuk grafik rata-rata score", min_value=1, max_value=500, value=5, step=1)
+            score_chart = score_chart[score_chart["jumlah_koridor"] >= min_koridor_score]
+            show_production_chart(score_chart, "avg_final_score", "Jenis produksi dengan rata-rata final score tertinggi.", top_k=20)
+        with pt5:
+            st.dataframe(format_dataframe_for_display(prod_sum.head(100)), use_container_width=True, height=420)
     else:
-        st.info("Tidak ada data jenis produksi pada hasil filter ini.")
+        st.info("Tidak ada data jenis produksi pada hasil filter ini. Cek apakah kolom `Jenis Produksi 1-4` ada di data upload atau filter sidebar terlalu sempit.")
 
 with tab_ranking:
     st.subheader("Daftar Urutan dan Nilai Koridor")
@@ -274,6 +348,31 @@ with tab_rekap:
         st.dataframe(format_dataframe_for_display(agg), use_container_width=True, height=620)
     else:
         st.warning("Kolom wilayah tidak tersedia atau data kosong.")
+
+    st.divider()
+    st.subheader("Rekap Jenis Produksi")
+    st.caption("Bagian ini membantu membandingkan komoditas lintas koridor: jumlah koridor, total produksi, luas lahan, dan rata-rata skor.")
+    prod_rekap = production_summary_table(f)
+    if len(prod_rekap):
+        metric_choice = st.selectbox(
+            "Grafik jenis produksi berdasarkan",
+            options=[
+                "total_produksi_ton_tahun",
+                "total_luas_lahan_ha",
+                "jumlah_koridor",
+                "avg_final_score",
+            ],
+            format_func=lambda x: {
+                "total_produksi_ton_tahun": "Total produksi ton/tahun",
+                "total_luas_lahan_ha": "Total luas lahan hektare",
+                "jumlah_koridor": "Jumlah koridor",
+                "avg_final_score": "Rata-rata final score",
+            }.get(x, x),
+        )
+        show_production_chart(prod_rekap, metric_choice, "Grafik rekap jenis produksi berdasarkan metrik yang dipilih.", top_k=30)
+        st.dataframe(format_dataframe_for_display(prod_rekap.head(200)), use_container_width=True, height=520)
+    else:
+        st.info("Tidak ada data jenis produksi pada filter saat ini.")
 
 with tab_query:
     st.subheader("Query Builder Tanpa SQL")

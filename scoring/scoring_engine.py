@@ -28,6 +28,13 @@ DEFAULT_SCORING_SETTINGS = {
     "condition_cost_zero_minimum_miliar": 0.0,
     "name_policy": "name_or_no_koridor",  # require_name | name_or_no_koridor
     "tematik_missing_policy": "score_and_penalty",  # score_only | score_and_penalty
+    # Batas kategori prioritas. Bisa diubah dari Admin → Rumus Perhitungan.
+    # Kategori: Rendah <= rendah_max; Sedang <= sedang_max; Tinggi <= tinggi_max; selebihnya Sangat Tinggi.
+    "category_thresholds": {
+        "rendah_max": 50.0,
+        "sedang_max": 65.0,
+        "tinggi_max": 80.0,
+    },
 }
 
 DEFAULT_COMMODITY_WEIGHTS = {
@@ -80,6 +87,25 @@ def normalize_scoring_settings(settings: dict | None = None) -> dict[str, Any]:
         out["condition_cost_zero_minimum_miliar"] = 0.0
     if out.get("condition_cost_zero_policy") not in {"allow_zero", "use_fallback_condition", "minimum_cost"}:
         out["condition_cost_zero_policy"] = "allow_zero"
+
+    # Normalize category thresholds. Invalid settings fall back to default to avoid wrong labels.
+    default_thr = DEFAULT_SCORING_SETTINGS["category_thresholds"]
+    raw_thr = out.get("category_thresholds", {})
+    if not isinstance(raw_thr, dict):
+        raw_thr = {}
+    try:
+        rendah_max = float(raw_thr.get("rendah_max", default_thr["rendah_max"]))
+        sedang_max = float(raw_thr.get("sedang_max", default_thr["sedang_max"]))
+        tinggi_max = float(raw_thr.get("tinggi_max", default_thr["tinggi_max"]))
+    except Exception:
+        rendah_max, sedang_max, tinggi_max = default_thr["rendah_max"], default_thr["sedang_max"], default_thr["tinggi_max"]
+    if not (0 <= rendah_max < sedang_max < tinggi_max <= 100):
+        rendah_max, sedang_max, tinggi_max = default_thr["rendah_max"], default_thr["sedang_max"], default_thr["tinggi_max"]
+    out["category_thresholds"] = {
+        "rendah_max": float(rendah_max),
+        "sedang_max": float(sedang_max),
+        "tinggi_max": float(tinggi_max),
+    }
     return out
 
 
@@ -690,6 +716,43 @@ def compute_parameter_score(df: pd.DataFrame, param: dict) -> pd.Series:
     return pd.Series(0.0, index=df.index)
 
 
+
+def get_category_thresholds(scoring_settings: dict | None = None) -> dict[str, float]:
+    """Return validated priority-category thresholds.
+
+    Rendah: final_score <= rendah_max
+    Sedang: rendah_max < final_score <= sedang_max
+    Tinggi: sedang_max < final_score <= tinggi_max
+    Sangat Tinggi: final_score > tinggi_max
+    """
+    settings = normalize_scoring_settings(scoring_settings)
+    return settings.get("category_thresholds", DEFAULT_SCORING_SETTINGS["category_thresholds"])
+
+
+def categorize_priority_scores(scores: pd.Series, scoring_settings: dict | None = None) -> pd.Series:
+    thr = get_category_thresholds(scoring_settings)
+    x = pd.to_numeric(scores, errors="coerce").fillna(0).clip(0, 100)
+    labels = np.select(
+        [
+            x <= float(thr["rendah_max"]),
+            x <= float(thr["sedang_max"]),
+            x <= float(thr["tinggi_max"]),
+        ],
+        ["Rendah", "Sedang", "Tinggi"],
+        default="Sangat Tinggi",
+    )
+    return pd.Series(labels, index=scores.index, dtype="object")
+
+
+def describe_category_thresholds(scoring_settings: dict | None = None) -> pd.DataFrame:
+    thr = get_category_thresholds(scoring_settings)
+    return pd.DataFrame([
+        {"kategori": "Rendah", "aturan": f"final_score <= {thr['rendah_max']:g}"},
+        {"kategori": "Sedang", "aturan": f"{thr['rendah_max']:g} < final_score <= {thr['sedang_max']:g}"},
+        {"kategori": "Tinggi", "aturan": f"{thr['sedang_max']:g} < final_score <= {thr['tinggi_max']:g}"},
+        {"kategori": "Sangat Tinggi", "aturan": f"final_score > {thr['tinggi_max']:g}"},
+    ])
+
 DEFAULT_DATA_QUALITY_RULES = [
     {"id": "nama_koridor_kosong", "active": True, "name": "Nama Koridor kosong", "rule_type": "blank", "source_columns": [COL["nama_koridor"]], "penalty": 10, "settings_json": {}},
     {"id": "panjang_kosong_atau_nol", "active": True, "name": "Panjang kosong/0", "rule_type": "nonpositive", "source_columns": [COL["panjang"]], "penalty": 25, "settings_json": {}},
@@ -843,11 +906,11 @@ def compute_scores_dynamic(
     out["tematik_missing_policy"] = scoring_settings.get("tematik_missing_policy", "score_and_penalty")
     out["final_score"] = (out["raw_score"] - out["data_quality_penalty"] * float(scoring_settings.get("penalty_factor", 0.30))).clip(0, 100)
 
-    out["kategori_prioritas"] = pd.cut(
-        out["final_score"],
-        bins=[-0.01, 50, 65, 80, 100],
-        labels=["Rendah", "Sedang", "Tinggi", "Sangat Tinggi"],
-    ).astype(str)
+    thresholds = get_category_thresholds(scoring_settings)
+    out["threshold_rendah_max"] = thresholds["rendah_max"]
+    out["threshold_sedang_max"] = thresholds["sedang_max"]
+    out["threshold_tinggi_max"] = thresholds["tinggi_max"]
+    out["kategori_prioritas"] = categorize_priority_scores(out["final_score"], scoring_settings)
     out["rank_nasional"] = out["final_score"].rank(method="dense", ascending=False).astype(int)
     if COL["provinsi"] in out.columns:
         out["rank_provinsi"] = out.groupby(COL["provinsi"])["final_score"].rank(method="dense", ascending=False).astype(int)

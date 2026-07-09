@@ -26,7 +26,7 @@ st.header("2. Alur kerja yang benar")
 st.markdown("""
 1. **Admin → Upload Data**: unggah Excel agregasi koridor.
 2. **Admin → Validasi Data**: cek data kosong, panjang 0, biaya 0, mismatch kondisi, KML/KMZ, tematik kosong, dan masalah lain.
-3. **Admin → Rumus Perhitungan**: atur kebijakan awal, bobot parameter, rumus internal, penalti, dan bobot komoditas.
+3. **Admin → Rumus Perhitungan**: atur kebijakan awal, bobot parameter, rumus internal, penalti, bobot komoditas, sumber biaya, dan threshold kategori prioritas.
 4. Klik **Simpan + Hitung Ulang**, atau buka **Admin → Scoring** untuk menghitung ulang ranking.
 5. **Pengguna → Dashboard**: baca ranking, filter wilayah, komponen skor, rekap, query builder, dan export.
 6. **Pengguna → Detail Koridor**: audit satu koridor.
@@ -45,9 +45,15 @@ with st.expander("🛣️ Dashboard", expanded=True):
     - tab **Overview** untuk ringkasan umum;
     - tab **Ranking** untuk daftar urutan koridor;
     - tab **Komponen Skor** untuk melihat skor per parameter;
-    - tab **Rekap Wilayah** untuk rekap provinsi/kabupaten;
+    - tab **Rekap Wilayah** untuk rekap provinsi/kabupaten dan rekap jenis produksi;
     - tab **Query Builder** untuk filter tanpa SQL;
     - tab **Export** untuk download hasil filter.
+
+    Pada bagian **Rekap dan Grafik Jenis Produksi**, aplikasi membaca `Jenis Produksi 1-4`, `Jumlah Produksi 1-4`, dan `Luas Lahan 1-4`, lalu menampilkan grafik:
+    - total produksi ton/tahun;
+    - total luas lahan hektare;
+    - jumlah koridor per jenis produksi;
+    - rata-rata final score per jenis produksi.
 
     Hint: jika tabel kosong, biasanya karena filter masih aktif. Reset filter atau longgarkan rentang final score.
     """)
@@ -79,6 +85,7 @@ with st.expander("📑 Rumus Aktif", expanded=False):
     - settings_json yang sedang berlaku;
     - penjelasan ekonomi komoditas;
     - daftar penalti data;
+    - threshold kategori prioritas;
     - audit hasil scoring.
 
     Hint: menu ini hanya untuk membaca. Mengubah rumus dilakukan di **Admin → Rumus Perhitungan**.
@@ -120,6 +127,7 @@ with st.expander("🧮 Rumus Perhitungan", expanded=True):
 
     Bagian penting:
     - **Kebijakan awal perhitungan**: penalti aktif/tidak, fallback KML/KMZ, normalisasi kondisi, sumber biaya, nama koridor kosong, tematik kosong.
+    - **Threshold Kategori Prioritas**: batas Rendah/Sedang/Tinggi/Sangat Tinggi yang dipakai setelah `final_score` dihitung.
     - **Editor Rumus / Parameter**: daftar parameter penilaian.
     - **Editor Penalti**: aturan pengurang skor akhir.
 
@@ -148,7 +156,8 @@ with st.expander("⚖️ Scoring", expanded=False):
     - mengubah `settings_json`;
     - mengubah penalti;
     - mengubah biaya berbasis kondisi;
-    - mengubah bobot komoditas.
+    - mengubah bobot komoditas;
+    - mengubah threshold kategori prioritas.
     """)
 
 with st.expander("🦆 Query DuckDB", expanded=False):
@@ -291,7 +300,7 @@ Kesalahan umum:
 - `weight` aktif semuanya 0.
 """)
 
-st.header("8. Cara membaca ekonomi komoditas")
+st.header("8. Cara membaca ekonomi komoditas dan grafik jenis produksi")
 st.markdown("""
 Parameter ekonomi komoditas membaca empat slot:
 
@@ -319,9 +328,57 @@ Jagung 1.000 ton × 1,20 = 1.200
 ```
 
 Artinya jumlah produksi sama bisa menghasilkan skor berbeda bila jenis komoditasnya berbeda.
+
+Di dashboard, rekap jenis produksi menampilkan nama komoditas sebagai teks. Jika sebelumnya muncul tanda `-`, penyebabnya adalah format tampilan lama membaca kolom `Jenis Produksi` sebagai angka karena ada kata `produksi` di nama kolom. Versi ini sudah memperbaikinya.
+
+Cara membaca grafik jenis produksi:
+- **Produksi**: menunjukkan komoditas dengan total produksi terbesar pada hasil filter.
+- **Luas Lahan**: menunjukkan komoditas dengan cakupan lahan terbesar.
+- **Jumlah Koridor**: menunjukkan berapa banyak koridor yang melayani komoditas tersebut.
+- **Rata-rata Score**: menunjukkan rata-rata `final_score` koridor yang memiliki jenis produksi tersebut. Gunakan batas minimal jumlah koridor agar komoditas yang hanya muncul 1 kali tidak terlalu menyesatkan.
 """)
 
-st.header("9. Format angka yang digunakan")
+st.header("9. Cara mengubah kategori Rendah/Sedang/Tinggi")
+st.markdown("""
+Kategori prioritas dibuat dari `final_score` memakai threshold. Default awal:
+
+```text
+Rendah        : final_score <= 50
+Sedang        : 50 < final_score <= 65
+Tinggi        : 65 < final_score <= 80
+Sangat Tinggi : final_score > 80
+```
+
+Jika kategori terasa terlalu jomplang, buka:
+
+```text
+Admin → Rumus Perhitungan → Threshold Kategori Prioritas
+```
+
+Ubah tiga batas ini:
+
+```text
+Batas maksimum Rendah
+Batas maksimum Sedang
+Batas maksimum Tinggi
+```
+
+Syaratnya:
+
+```text
+0 <= Rendah < Sedang < Tinggi <= 100
+```
+
+Setelah mengubah threshold, wajib klik:
+
+```text
+Simpan + Hitung Ulang
+```
+
+Dashboard baru akan berubah setelah scoring ulang selesai. Jika hanya klik simpan tanpa hitung ulang, konfigurasi tersimpan tetapi kategori lama masih berada di file hasil scoring.
+""")
+
+st.header("10. Format angka yang digunakan")
 st.markdown("""
 Tampilan aplikasi memakai format Indonesia:
 
@@ -337,7 +394,7 @@ Tampilan aplikasi memakai format Indonesia:
 Data asli di Parquet dan export tetap numerik agar bisa dihitung lagi. Format Indonesia hanya untuk tampilan layar.
 """)
 
-st.header("10. Checklist sebelum ranking dipakai")
+st.header("11. Checklist sebelum ranking dipakai")
 st.markdown("""
 Sebelum ranking dipakai untuk bahan keputusan, cek:
 
@@ -348,5 +405,6 @@ Sebelum ranking dipakai untuk bahan keputusan, cek:
 5. Apakah tematik kosong diperlakukan sebagai masalah?
 6. Apakah bobot jenis produksi sudah sesuai kebijakan? Bobot default bukan bobot final.
 7. Apakah top 20 masuk akal secara teknis, ekonomi, konektivitas, dan pelayanan publik?
-8. Apakah ada parameter yang double count, misalnya ekonomi lama aktif bersamaan dengan ekonomi komoditas gabungan?
+8. Apakah threshold kategori prioritas sudah sesuai distribusi skor dan kebutuhan keputusan?
+9. Apakah ada parameter yang double count, misalnya ekonomi lama aktif bersamaan dengan ekonomi komoditas gabungan?
 """)

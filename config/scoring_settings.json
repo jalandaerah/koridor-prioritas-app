@@ -14,5 +14,10 @@
   "tematik_missing_policy": "score_and_penalty",
   "condition_cost_zero_policy": "allow_zero",
   "condition_cost_zero_fallback_condition": "sedang",
-  "condition_cost_zero_minimum_miliar": 0.0
+  "condition_cost_zero_minimum_miliar": 0.0,
+  "category_thresholds": {
+    "rendah_max": 50.0,
+    "sedang_max": 65.0,
+    "tinggi_max": 80.0
+  }
 }

@@ -8,7 +8,7 @@ from scoring.io import (
     has_raw_data, has_scored_data, load_parquet, RAW_PARQUET, SCORED_PARQUET,
     load_formula_params, load_scoring_settings, load_data_quality_rules,
 )
-from scoring.scoring_engine import FORMULA_TYPES, build_formula_summary, compute_scores_dynamic
+from scoring.scoring_engine import FORMULA_TYPES, build_formula_summary, compute_scores_dynamic, describe_category_thresholds
 from scoring.formatting import format_dataframe_for_display, format_metric_value
 
 st.title("📑 Penjelasan Rumus Aktif")
@@ -40,12 +40,18 @@ final_score = raw_score - (data_quality_penalty × penalty_factor)
 ```
 
 `raw_score` berasal dari gabungan seluruh parameter aktif. Bobot asli boleh berjumlah berapa pun; aplikasi akan menormalkan bobot aktif menjadi 100%. Jika penalti kualitas data dimatikan, `final_score = raw_score`.
+
+Kategori prioritas tidak berasal dari rumus statistik otomatis. Kategori memakai threshold yang bisa diubah di **Admin → Rumus Perhitungan → Threshold Kategori Prioritas**.
 """)
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+st.subheader("Threshold kategori prioritas saat ini")
+st.dataframe(describe_category_thresholds(settings), use_container_width=True, hide_index=True)
+
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🧮 Rumus Aktif",
     "📚 Jenis Tipe Skor",
     "🌾 Ekonomi Komoditas",
+    "🎚️ Kategori",
     "⚠️ Penalti Data",
     "🔎 Audit Hasil"
 ])
@@ -177,6 +183,27 @@ with tab3:
     """)
 
 with tab4:
+    st.subheader("Kategori prioritas dan threshold")
+    st.markdown("""
+    Kategori adalah label interpretasi dari `final_score`. Threshold ini **bisa diubah**, jadi jangan dianggap sebagai aturan mutlak jika belum disepakati secara kebijakan.
+
+    Contoh default:
+    - Rendah: `final_score <= 50`
+    - Sedang: `50 < final_score <= 65`
+    - Tinggi: `65 < final_score <= 80`
+    - Sangat Tinggi: `final_score > 80`
+
+    Jika distribusi skor terlalu menumpuk atau terlalu jomplang, ubah batasnya di menu **Admin → Rumus Perhitungan** lalu klik **Simpan + Hitung Ulang**.
+    """)
+    st.dataframe(describe_category_thresholds(settings), use_container_width=True, hide_index=True)
+    if has_scored_data():
+        df_cat = load_parquet(SCORED_PARQUET)
+        if "kategori_prioritas" in df_cat.columns:
+            st.markdown("#### Jumlah koridor per kategori saat ini")
+            vc = df_cat["kategori_prioritas"].value_counts().rename_axis("kategori").reset_index(name="jumlah_koridor")
+            st.dataframe(format_dataframe_for_display(vc), use_container_width=True, hide_index=True)
+
+with tab5:
     st.subheader("Penalti kualitas data")
     st.markdown("""
     Penalti berbeda dari skor parameter. Skor parameter menambah nilai, sedangkan penalti mengurangi nilai akhir bila data belum lengkap atau tidak konsisten.
@@ -201,7 +228,7 @@ with tab4:
     settings_rows = [{"setting": k, "nilai": json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v} for k, v in settings.items()]
     st.dataframe(pd.DataFrame(settings_rows), use_container_width=True, height=360)
 
-with tab5:
+with tab6:
     st.subheader("Audit hasil scoring saat ini")
     if not has_scored_data():
         st.warning("Belum ada hasil scoring. Jalankan Admin → Upload Data, lalu Admin → Scoring atau Admin → Rumus Perhitungan → Simpan + Hitung Ulang.")

@@ -43,8 +43,32 @@ def format_int_id(value: Any, suffix: str = "") -> str:
 
 
 def column_format_kind(col: str) -> tuple[str, int, str, str]:
-    """Return (kind, decimals, prefix, suffix) inferred from column name."""
-    c = str(col).lower()
+    """Return (kind, decimals, prefix, suffix) inferred from column name.
+
+    Catatan penting: beberapa kolom teks mengandung kata seperti "produksi"
+    atau "kondisi". Kolom-kolom identitas/kategori harus dideteksi sebagai teks
+    lebih dulu agar nilai seperti "Padi", "Jagung", atau "Kelapa Sawit"
+    tidak diformat sebagai angka dan berubah menjadi tanda "-".
+    """
+    c = str(col).lower().strip()
+
+    # Kolom kategorikal/teks yang tidak boleh diformat numerik meskipun namanya
+    # mengandung kata "produksi", "biaya", atau "score".
+    text_tokens = [
+        "jenis produksi", "nama", "id ", "id_", "no.", "nomor", "provinsi",
+        "kabupaten", "kota", "kecamatan", "tematik", "rpjmn", "kspp",
+        "status", "kategori", "sumber", "reason", "alasan", "detail",
+        "description", "formula", "setting", "parameter", "group", "kolom",
+        "map", "url", "link", "path", "display", "komoditas", "commodity",
+    ]
+    exact_text = {
+        "jenis produksi", "jenis_produksi", "jenis_produksi_detail",
+        "jenis_produksi_bobot_detail", "biaya_sumber", "biaya_nol_reason",
+        "kategori_prioritas", "nama_koridor_display",
+    }
+    if c in exact_text or any(tok in c for tok in text_tokens):
+        return ("text", 0, "", "")
+
     if c in {"rank_nasional", "rank", "jumlah", "jumlah_koridor"} or c.startswith("rank_"):
         return ("int", 0, "", "")
     if any(x in c for x in ["persen", "percentage", "percent"]):

@@ -41,6 +41,12 @@ with st.expander("📘 Panduan cepat membaca halaman ini", expanded=False):
     ```json
     {"weights":{"persen_rusak_berat":1.2,"persen_rusak_ringan":0.7,"persen_sedang":0.15},"clip_min":0,"clip_max":100}
     ```
+
+    Contoh mengubah bobot komoditas ekonomi:
+    ```json
+    {"commodity_weights":{"Padi":1.5,"Jagung":1.2,"Kelapa Sawit":1.15},"default_weight":1.0,"cap_quantile":0.95,"missing_score":0}
+    ```
+    Parameter baru untuk ekonomi komoditas membaca `Jenis Produksi 1-4`, `Jumlah Produksi 1-4`, dan `Luas Lahan 1-4`.
     """)
 
 with st.expander("📘 Katalog tipe rumus dan contoh settings_json", expanded=False):

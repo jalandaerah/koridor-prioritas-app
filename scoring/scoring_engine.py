@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 import numpy as np
 
-from .schema import COL, NUMERIC_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS
+from .schema import COL, NUMERIC_COLS, PRODUCTION_TYPE_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS, PRODUCTION_SLOTS
 from .utils import flag_exists, normalize_0_100, inverse_priority_score, EMPTY_MARKERS
 
 DEFAULT_SCORING_SETTINGS = {
@@ -28,6 +28,34 @@ DEFAULT_SCORING_SETTINGS = {
     "condition_cost_zero_minimum_miliar": 0.0,
     "name_policy": "name_or_no_koridor",  # require_name | name_or_no_koridor
     "tematik_missing_policy": "score_and_penalty",  # score_only | score_and_penalty
+}
+
+DEFAULT_COMMODITY_WEIGHTS = {
+    # Default awal bersifat editable, bukan angka final kebijakan.
+    # Ubah bobot ini dari settings_json parameter produksi bila ada prioritas komoditas resmi.
+    "padi": 1.50,
+    "beras": 1.50,
+    "jagung": 1.20,
+    "kedelai": 1.25,
+    "ubi kayu": 1.05,
+    "sagu": 1.05,
+    "tebu": 1.10,
+    "kelapa sawit": 1.15,
+    "kelapa": 1.05,
+    "kopi": 1.15,
+    "kakao": 1.15,
+    "cengkeh": 1.10,
+    "lada": 1.10,
+    "karet": 1.05,
+    "bawang merah": 1.20,
+    "cabai": 1.20,
+    "sayuran lain": 1.05,
+    "perikanan tangkap": 1.25,
+    "rumput laut": 1.20,
+    "udang": 1.30,
+    "sapi potong": 1.25,
+    "ayam buras": 1.10,
+    "garam": 1.05,
 }
 
 
@@ -127,6 +155,30 @@ FORMULA_TYPES: dict[str, dict[str, str]] = {
         "formula": "score = normalize(produksi_total) x production_weight + normalize(luas_lahan_total) x land_weight",
         "notes": "Bobot produksi dan lahan bisa diedit. Jika total bobot tidak 1, aplikasi menormalisasi otomatis.",
         "settings_example": '{"production_weight":0.6,"land_weight":0.4,"cap_quantile":0.95}'
+    },
+    "production_amount_by_type": {
+        "label": "Jumlah produksi tertimbang jenis komoditas",
+        "formula": "nilai = Σ(jumlah produksi i x bobot jenis produksi i), lalu dinormalisasi 0-100",
+        "notes": "Cocok untuk menilai volume produksi dengan bobot komoditas. Padi bisa dibuat lebih tinggi dari jagung, dst.",
+        "settings_example": '{"commodity_weights":{"Padi":1.5,"Jagung":1.2,"Kelapa Sawit":1.15},"default_weight":1.0,"cap_quantile":0.95,"missing_score":0}'
+    },
+    "land_area_by_type": {
+        "label": "Luas lahan tertimbang jenis komoditas",
+        "formula": "nilai = Σ(luas lahan i x bobot jenis produksi i), lalu dinormalisasi 0-100",
+        "notes": "Cocok untuk menilai luas lahan yang dilayani dengan bobot komoditas.",
+        "settings_example": '{"commodity_weights":{"Padi":1.5,"Jagung":1.2,"Kelapa Sawit":1.15},"default_weight":1.0,"cap_quantile":0.95,"missing_score":0}'
+    },
+    "production_type_priority": {
+        "label": "Prioritas jenis produksi",
+        "formula": "score = bobot jenis produksi tertinggi pada koridor / bobot maksimum x 100",
+        "notes": "Menilai jenis komoditasnya saja, tanpa volume. Gunakan bersama produksi/lahan agar tidak hanya berbasis nama komoditas.",
+        "settings_example": '{"commodity_weights":{"Padi":1.5,"Jagung":1.2,"Kelapa Sawit":1.15},"default_weight":1.0,"missing_score":0}'
+    },
+    "production_land_by_type": {
+        "label": "Ekonomi komoditas: produksi + lahan tertimbang",
+        "formula": "score = normalize(Σproduksi x bobot komoditas) x production_weight + normalize(Σlahan x bobot komoditas) x land_weight",
+        "notes": "Ini versi ekonomi yang mengaitkan jenis produksi, jumlah produksi, dan luas lahan dalam satu rumus.",
+        "settings_example": '{"commodity_weights":{"Padi":1.5,"Jagung":1.2,"Kelapa Sawit":1.15},"default_weight":1.0,"production_weight":0.6,"land_weight":0.4,"cap_quantile":0.95}'
     },
     "kml_ratio": {
         "label": "Kesesuaian panjang KML terhadap panjang koridor",
@@ -341,6 +393,11 @@ def compute_indicators(df: pd.DataFrame, scoring_settings: dict | None = None) -
     lahan_cols = [c for c in LAND_AREA_COLS if c in out.columns]
     out["produksi_total_ton_tahun"] = out[prod_cols].clip(lower=0).fillna(0).sum(axis=1) if prod_cols else 0
     out["luas_lahan_total_ha"] = out[lahan_cols].clip(lower=0).fillna(0).sum(axis=1) if lahan_cols else 0
+    jenis_cols = [c for c in PRODUCTION_TYPE_COLS if c in out.columns]
+    if jenis_cols:
+        out["jenis_produksi_detail"] = out[jenis_cols].fillna("").astype(str).apply(lambda r: "; ".join([x.strip() for x in r.tolist() if x.strip() and x.strip().lower() not in {"nan", "none", "-"}]), axis=1)
+    else:
+        out["jenis_produksi_detail"] = ""
 
     facility_cols = [COL["pendidikan"], COL["kesehatan"], COL["pemerintahan"], COL["sppg"]]
     for c in facility_cols:
@@ -416,6 +473,79 @@ def _weighted_sum_series(df: pd.DataFrame, weights: dict[str, float]) -> pd.Seri
         if col in df.columns:
             total += pd.to_numeric(df[col], errors="coerce").fillna(0) * float(w)
     return total
+
+
+def _normalize_commodity_name(value: Any) -> str:
+    if pd.isna(value):
+        return ""
+    text = str(value).strip().lower()
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def _commodity_weights(settings: dict) -> dict[str, float]:
+    raw = settings.get("commodity_weights", DEFAULT_COMMODITY_WEIGHTS)
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except Exception:
+            raw = {}
+    if not isinstance(raw, dict):
+        raw = {}
+    merged = dict(DEFAULT_COMMODITY_WEIGHTS)
+    merged.update({_normalize_commodity_name(k): _int_or_float(v) for k, v in raw.items()})
+    return merged
+
+
+def _production_weighted_values(df: pd.DataFrame, settings: dict) -> dict[str, pd.Series]:
+    weights = _commodity_weights(settings)
+    default_weight = _float_setting(settings, "default_weight", 1.0)
+    weighted_prod = pd.Series(0.0, index=df.index)
+    weighted_land = pd.Series(0.0, index=df.index)
+    max_weight = pd.Series(0.0, index=df.index)
+    count_known = pd.Series(0.0, index=df.index)
+
+    display_parts = pd.Series("", index=df.index, dtype="object")
+
+    for type_col, prod_col, land_col in PRODUCTION_SLOTS:
+        if type_col in df.columns:
+            jenis = df[type_col].fillna("").astype(str).str.strip()
+        else:
+            jenis = pd.Series("", index=df.index)
+        jenis_norm = jenis.map(_normalize_commodity_name)
+        w = jenis_norm.map(lambda x: weights.get(x, default_weight) if x else 0.0).astype(float)
+        prod = pd.to_numeric(df[prod_col], errors="coerce").fillna(0).clip(lower=0) if prod_col in df.columns else pd.Series(0.0, index=df.index)
+        land = pd.to_numeric(df[land_col], errors="coerce").fillna(0).clip(lower=0) if land_col in df.columns else pd.Series(0.0, index=df.index)
+
+        weighted_prod += prod * w
+        weighted_land += land * w
+        max_weight = pd.concat([max_weight, w], axis=1).max(axis=1)
+        count_known += np.where(jenis_norm.ne(""), 1.0, 0.0)
+
+        # Human-readable audit string; keep it compact.
+        part = jenis.where(jenis_norm.eq(""), jenis + " x" + w.map(lambda v: f"{v:g}"))
+        display_parts = np.where(
+            (jenis_norm.ne("")) & (display_parts.astype(str).ne("")),
+            display_parts.astype(str) + "; " + part.astype(str),
+            np.where(jenis_norm.ne(""), part.astype(str), display_parts.astype(str)),
+        )
+        display_parts = pd.Series(display_parts, index=df.index, dtype="object")
+
+    return {
+        "produksi_tertimbang_ton_tahun": weighted_prod,
+        "luas_lahan_tertimbang_ha": weighted_land,
+        "jenis_produksi_bobot_maks": max_weight,
+        "jumlah_jenis_produksi_terisi": count_known,
+        "jenis_produksi_bobot_detail": display_parts,
+    }
+
+
+def add_production_weighted_indicators(df: pd.DataFrame, settings: dict | None = None) -> pd.DataFrame:
+    out = df.copy()
+    vals = _production_weighted_values(out, settings or {})
+    for k, v in vals.items():
+        out[k] = v
+    return out
 
 
 def compute_parameter_score(df: pd.DataFrame, param: dict) -> pd.Series:
@@ -509,6 +639,41 @@ def compute_parameter_score(df: pd.DataFrame, param: dict) -> pd.Series:
         if total_w <= 0:
             return pd.Series(0.0, index=df.index)
         return (prod_score * (prod_w / total_w) + lahan_score * (land_w / total_w)).clip(0, 100)
+
+    if formula_type in {"production_amount_by_type", "land_area_by_type", "production_type_priority", "production_land_by_type"}:
+        vals = _production_weighted_values(df, settings)
+        prod = vals["produksi_tertimbang_ton_tahun"]
+        land = vals["luas_lahan_tertimbang_ha"]
+        max_w = vals["jenis_produksi_bobot_maks"]
+        missing_score = _float_setting(settings, "missing_score", 0.0)
+
+        if formula_type == "production_amount_by_type":
+            out = normalize_0_100(prod, higher_is_better=True, cap_quantile=cap)
+            out.loc[prod <= 0] = missing_score
+            return out.clip(0, 100)
+
+        if formula_type == "land_area_by_type":
+            out = normalize_0_100(land, higher_is_better=True, cap_quantile=cap)
+            out.loc[land <= 0] = missing_score
+            return out.clip(0, 100)
+
+        if formula_type == "production_type_priority":
+            weights = _commodity_weights(settings)
+            max_possible = max([v for v in weights.values() if v is not None] + [1.0])
+            out = (max_w / max_possible * 100).replace([np.inf, -np.inf], np.nan).fillna(missing_score)
+            out.loc[max_w <= 0] = missing_score
+            return out.clip(0, 100)
+
+        prod_score = normalize_0_100(prod, higher_is_better=True, cap_quantile=cap)
+        land_score = normalize_0_100(land, higher_is_better=True, cap_quantile=cap)
+        prod_score.loc[prod <= 0] = missing_score
+        land_score.loc[land <= 0] = missing_score
+        prod_w = _float_setting(settings, "production_weight", 0.60)
+        land_w = _float_setting(settings, "land_weight", 0.40)
+        total_w = prod_w + land_w
+        if total_w <= 0:
+            return pd.Series(0.0, index=df.index)
+        return (prod_score * (prod_w / total_w) + land_score * (land_w / total_w)).clip(0, 100)
 
     if formula_type == "kml_ratio":
         # Uses `panjang_kml_used_km` when available. That column applies the global KML fallback policy.
@@ -629,6 +794,10 @@ def compute_scores_dynamic(
         scoring_settings["penalty_factor"] = float(penalty_factor)
     out = compute_indicators(df, scoring_settings=scoring_settings)
     active_params = [p for p in formula_params if bool(p.get("active", True)) and float(p.get("weight", 0) or 0) > 0]
+    # Add audit columns for commodity-weighted production/lahan using the first active production formula settings.
+    prod_param = next((p for p in active_params if str(p.get("formula_type", "")) in {"production_amount_by_type", "land_area_by_type", "production_type_priority", "production_land_by_type"}), None)
+    if prod_param is not None:
+        out = add_production_weighted_indicators(out, _settings(prod_param))
     total_weight = sum(float(p.get("weight", 0) or 0) for p in active_params)
     if total_weight <= 0:
         raise ValueError("Minimal harus ada 1 rumus aktif dengan bobot lebih besar dari 0.")
@@ -735,6 +904,17 @@ def describe_formula(param: dict) -> str:
         lw = _float_setting(settings, "land_weight", 0.4)
         total = pw + lw if (pw + lw) > 0 else 1
         return f"score = produksi_score x {pw/total:.2f} + lahan_score x {lw/total:.2f}"
+    if ft == "production_amount_by_type":
+        return "score = normalize(Σ jumlah produksi x bobot jenis produksi)"
+    if ft == "land_area_by_type":
+        return "score = normalize(Σ luas lahan x bobot jenis produksi)"
+    if ft == "production_type_priority":
+        return "score = bobot jenis produksi tertinggi / bobot maksimum x 100"
+    if ft == "production_land_by_type":
+        pw = _float_setting(settings, "production_weight", 0.6)
+        lw = _float_setting(settings, "land_weight", 0.4)
+        total = pw + lw if (pw + lw) > 0 else 1
+        return f"score = produksi_tertimbang_score x {pw/total:.2f} + lahan_tertimbang_score x {lw/total:.2f}"
     if ft == "yes_no":
         true_values = settings.get("true_values", ["YA", "YES", "Y", "TRUE", "1", "TERHUBUNG", "ADA"])
         return f"score = {_float_setting(settings,'true_score',100):g} jika nilai ∈ {true_values}; selain itu {_float_setting(settings,'false_score',0):g}"
@@ -783,7 +963,14 @@ def export_columns(df: pd.DataFrame, include_audit: bool = False) -> pd.DataFram
         "biaya_aktif_miliar", "biaya_per_km_miliar",
         "persen_rusak_total", "persen_rusak_berat", "persen_rusak_ringan", "persen_sedang",
         "data_quality_penalty", "raw_score", "final_score", "kategori_prioritas",
-        COL["status_pengajuan"], COL["tematik"], COL["jenis_produksi"], COL["prioritas_kab"], COL["prioritas_prov"], COL["koridor_awal"],
+        COL["status_pengajuan"], COL["tematik"], COL["jenis_produksi"],
+        "Jenis Produksi 1", "Jumlah Produksi 1 (Ton/Tahun)", "Luas Lahan 1 (Ha)",
+        "Jenis Produksi 2", "Jumlah Produksi 2 (Ton/Tahun)", "Luas Lahan 2 (Ha)",
+        "Jenis Produksi 3", "Jumlah Produksi 3 (Ton/Tahun)", "Luas Lahan 3 (Ha)",
+        "Jenis Produksi 4", "Jumlah Produksi 4 (Ton/Tahun)", "Luas Lahan 4 (Ha)",
+        "produksi_total_ton_tahun", "luas_lahan_total_ha",
+        "produksi_tertimbang_ton_tahun", "luas_lahan_tertimbang_ha", "jenis_produksi_bobot_maks", "jenis_produksi_bobot_detail",
+        COL["prioritas_kab"], COL["prioritas_prov"], COL["koridor_awal"],
         "panjang_kml_used_km",
     ]
     audit_cols = [

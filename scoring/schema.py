@@ -37,6 +37,13 @@ COL = {
     "rujj": "Beririsan dengan Rencana Umum Jaringan Jalan",
 }
 
+PRODUCTION_TYPE_COLS = [
+    "Jenis Produksi 1",
+    "Jenis Produksi 2",
+    "Jenis Produksi 3",
+    "Jenis Produksi 4",
+]
+
 PRODUCTION_AMOUNT_COLS = [
     "Jumlah Produksi 1 (Ton/Tahun)",
     "Jumlah Produksi 2 (Ton/Tahun)",
@@ -50,6 +57,8 @@ LAND_AREA_COLS = [
     "Luas Lahan 3 (Ha)",
     "Luas Lahan 4 (Ha)",
 ]
+
+PRODUCTION_SLOTS = list(zip(PRODUCTION_TYPE_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS))
 
 NUMERIC_COLS = [
     COL["panjang"], COL["baik"], COL["sedang"], COL["rusak_ringan"], COL["rusak_berat"], COL["biaya"],

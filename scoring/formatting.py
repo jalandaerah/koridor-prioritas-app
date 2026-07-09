@@ -57,7 +57,7 @@ def column_format_kind(col: str) -> tuple[str, int, str, str]:
         return ("number", 2, "", "")
     if any(x in c for x in ["luas", "lahan", "produksi", "ton", "volume", "penduduk", "fasilitas", "sppg", "pendidikan", "kesehatan", "pemerintahan"]):
         return ("number", 2, "", "")
-    if any(x in c for x in ["factor", "ratio", "rasio", "quantile"]):
+    if any(x in c for x in ["factor", "ratio", "rasio", "quantile", "bobot"]):
         return ("number", 4, "", "")
     return ("text", 0, "", "")
 

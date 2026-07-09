@@ -2,7 +2,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from scoring.io import has_scored_data, load_parquet, load_formula_params
-from scoring.schema import COL
+from scoring.schema import COL, PRODUCTION_TYPE_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS
 from scoring.scoring_engine import get_score_component_columns, build_formula_summary, export_columns
 from scoring.formatting import format_dataframe_for_display, format_metric_value, format_series_for_display
 
@@ -33,6 +33,33 @@ st.write(f"**Kabupaten/Kota:** {row[COL['kabupaten']]}  ")
 st.write(f"**No. Koridor:** {row[COL['no_koridor']]}  ")
 st.write(f"**Tematik:** {row.get(COL['tematik'], '-')}")
 st.write(f"**Panjang KML Used:** {format_metric_value(row.get('panjang_kml_used_km'), decimals=2)} km  ")
+
+st.subheader("Ringkasan Ekonomi Komoditas")
+prod_items = []
+for i, (tcol, pcol, lcol) in enumerate(zip(PRODUCTION_TYPE_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS), start=1):
+    jenis = str(row.get(tcol, "") or "").strip()
+    if jenis and jenis.lower() not in {"nan", "none", "-"}:
+        prod_items.append({
+            "Slot": i,
+            "Jenis Produksi": jenis,
+            "Jumlah Produksi": row.get(pcol),
+            "Satuan Produksi": "Ton/Tahun",
+            "Luas Lahan": row.get(lcol),
+            "Satuan Lahan": "Ha",
+        })
+if prod_items:
+    st.dataframe(format_dataframe_for_display(pd.DataFrame(prod_items)), use_container_width=True, hide_index=True)
+else:
+    st.info("Jenis produksi 1-4 belum terisi untuk koridor ini.")
+prod_summary = pd.DataFrame([
+    {"Item": "Produksi total", "Nilai": format_metric_value(row.get("produksi_total_ton_tahun"), decimals=2), "Satuan": "Ton/Tahun"},
+    {"Item": "Luas lahan total", "Nilai": format_metric_value(row.get("luas_lahan_total_ha"), decimals=2), "Satuan": "Ha"},
+    {"Item": "Produksi tertimbang komoditas", "Nilai": format_metric_value(row.get("produksi_tertimbang_ton_tahun"), decimals=2), "Satuan": "Ton/Tahun x bobot"},
+    {"Item": "Luas lahan tertimbang komoditas", "Nilai": format_metric_value(row.get("luas_lahan_tertimbang_ha"), decimals=2), "Satuan": "Ha x bobot"},
+    {"Item": "Bobot jenis produksi maksimum", "Nilai": format_metric_value(row.get("jenis_produksi_bobot_maks"), decimals=4), "Satuan": "bobot"},
+    {"Item": "Detail bobot komoditas", "Nilai": str(row.get("jenis_produksi_bobot_detail", "-")), "Satuan": ""},
+])
+st.dataframe(prod_summary, use_container_width=True, hide_index=True)
 
 st.subheader("Ringkasan Biaya yang Dipakai Scoring")
 biaya_summary = pd.DataFrame([

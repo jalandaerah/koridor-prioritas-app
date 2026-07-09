@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from scoring.io import has_scored_data, load_parquet
-from scoring.schema import COL
+from scoring.schema import COL, PRODUCTION_TYPE_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS
 from scoring.scoring_engine import export_columns, get_score_component_columns
 from scoring.formatting import format_dataframe_for_display, format_metric_value
 
@@ -25,6 +25,42 @@ def safe_unique(df: pd.DataFrame, col: str) -> list:
     if col not in df.columns:
         return []
     return sorted([x for x in df[col].dropna().unique().tolist() if str(x).strip()])
+
+
+def safe_unique_many(df: pd.DataFrame, cols: list[str]) -> list:
+    vals = []
+    for col in cols:
+        if col in df.columns:
+            vals.extend(df[col].dropna().astype(str).str.strip().tolist())
+    return sorted([x for x in set(vals) if x and x.lower() not in {"nan", "none", "-"}])
+
+
+def production_summary_table(df: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for i, (type_col, prod_col, land_col) in enumerate(zip(PRODUCTION_TYPE_COLS, PRODUCTION_AMOUNT_COLS, LAND_AREA_COLS), start=1):
+        if type_col not in df.columns:
+            continue
+        tmp = pd.DataFrame({
+            "Jenis Produksi": df[type_col].fillna("").astype(str).str.strip(),
+            "Jumlah Produksi": pd.to_numeric(df[prod_col], errors="coerce").fillna(0) if prod_col in df.columns else 0,
+            "Luas Lahan": pd.to_numeric(df[land_col], errors="coerce").fillna(0) if land_col in df.columns else 0,
+            "Final Score": pd.to_numeric(df.get("final_score"), errors="coerce"),
+            "ID Koridor": df[COL["id_koridor"]] if COL["id_koridor"] in df.columns else df.index,
+        })
+        tmp = tmp[tmp["Jenis Produksi"].ne("")]
+        rows.append(tmp)
+    if not rows:
+        return pd.DataFrame()
+    allp = pd.concat(rows, ignore_index=True)
+    allp = allp[~allp["Jenis Produksi"].str.lower().isin(["nan", "none", "-"])]
+    if allp.empty:
+        return pd.DataFrame()
+    return allp.groupby("Jenis Produksi", dropna=False).agg(
+        jumlah_koridor=("ID Koridor", "nunique"),
+        total_produksi_ton_tahun=("Jumlah Produksi", "sum"),
+        total_luas_lahan_ha=("Luas Lahan", "sum"),
+        avg_final_score=("Final Score", "mean"),
+    ).reset_index().sort_values("total_produksi_ton_tahun", ascending=False)
 
 
 def to_excel_bytes(df: pd.DataFrame, sheet_name: str = "ranking") -> bytes:
@@ -79,7 +115,8 @@ with st.sidebar:
 
     kategori = st.multiselect("Kategori Prioritas", safe_unique(df, "kategori_prioritas"))
     tematik = st.multiselect("Tematik", safe_unique(df, COL["tematik"]), help="Filter tematik jika kolom tersedia.")
-    jenis_produksi = st.multiselect("Jenis Produksi", safe_unique(df, COL["jenis_produksi"]), help="Filter jenis produksi jika kolom tersedia.")
+    jenis_produksi_options = safe_unique_many(df, [COL["jenis_produksi"], *PRODUCTION_TYPE_COLS])
+    jenis_produksi = st.multiselect("Jenis Produksi", jenis_produksi_options, help="Filter jenis produksi utama maupun Jenis Produksi 1-4 jika kolom tersedia.")
 
     min_score = float(df["final_score"].min()) if len(df) else 0.0
     max_score = float(df["final_score"].max()) if len(df) else 100.0
@@ -99,26 +136,32 @@ if kategori:
     f = f[f["kategori_prioritas"].isin(kategori)]
 if tematik and COL["tematik"] in f.columns:
     f = f[f[COL["tematik"]].isin(tematik)]
-if jenis_produksi and COL["jenis_produksi"] in f.columns:
-    f = f[f[COL["jenis_produksi"]].isin(jenis_produksi)]
+if jenis_produksi:
+    mask_prod = pd.Series(False, index=f.index)
+    for pc in [COL["jenis_produksi"], *PRODUCTION_TYPE_COLS]:
+        if pc in f.columns:
+            mask_prod = mask_prod | f[pc].fillna("").astype(str).str.strip().isin(jenis_produksi)
+    f = f[mask_prod]
 f = f[(f["final_score"] >= score_range[0]) & (f["final_score"] <= score_range[1])]
 
 if search.strip():
-    search_cols = [c for c in [COL["id_koridor"], COL["nama_koridor"], COL["provinsi"], COL["kabupaten"], COL["tematik"], COL["jenis_produksi"], COL["status_pengajuan"]] if c in f.columns]
+    search_cols = [c for c in [COL["id_koridor"], COL["nama_koridor"], COL["provinsi"], COL["kabupaten"], COL["tematik"], COL["jenis_produksi"], *PRODUCTION_TYPE_COLS, "jenis_produksi_detail", COL["status_pengajuan"]] if c in f.columns]
     mask = pd.Series(False, index=f.index)
     q = search.strip().lower()
     for c in search_cols:
         mask = mask | f[c].fillna("").astype(str).str.lower().str.contains(q, regex=False)
     f = f[mask]
 
-m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
+m1, m2, m3, m4, m5, m6, m7, m8, m9 = st.columns(9)
 m1.metric("Koridor", format_metric_value(f.shape[0], kind="int"))
 m2.metric("Panjang KM", format_metric_value(f[COL['panjang']].sum(), decimals=2) if COL["panjang"] in f.columns else "0")
 m3.metric("Biaya Aktif Rp M", format_metric_value(f['biaya_aktif_miliar'].sum(), decimals=2) if "biaya_aktif_miliar" in f.columns else (format_metric_value(f[COL['biaya']].sum(), decimals=2) if COL["biaya"] in f.columns else "0"))
 m4.metric("Final Score Rata-rata", format_metric_value(f['final_score'].mean(), decimals=2) if len(f) else "0")
 m5.metric("Prioritas Tinggi+", format_metric_value(int(f["kategori_prioritas"].isin(["Tinggi", "Sangat Tinggi"]).sum()), kind="int") if "kategori_prioritas" in f.columns else "0")
-m6.metric("Rata-rata Penalti", format_metric_value(f['data_quality_penalty'].mean(), decimals=2) if len(f) else "0")
-m7.metric("Biaya 0", format_metric_value(int((pd.to_numeric(f.get("biaya_aktif_miliar"), errors="coerce").fillna(0) <= 0).sum()), kind="int") if "biaya_aktif_miliar" in f.columns else "0")
+m6.metric("Produksi Ton/Th", format_metric_value(f['produksi_total_ton_tahun'].sum(), decimals=2) if "produksi_total_ton_tahun" in f.columns else "0")
+m7.metric("Luas Lahan Ha", format_metric_value(f['luas_lahan_total_ha'].sum(), decimals=2) if "luas_lahan_total_ha" in f.columns else "0")
+m8.metric("Rata-rata Penalti", format_metric_value(f['data_quality_penalty'].mean(), decimals=2) if len(f) else "0")
+m9.metric("Biaya 0", format_metric_value(int((pd.to_numeric(f.get("biaya_aktif_miliar"), errors="coerce").fillna(0) <= 0).sum()), kind="int") if "biaya_aktif_miliar" in f.columns else "0")
 
 st.divider()
 
@@ -167,6 +210,14 @@ with tab_overview:
                 zero = f[pd.to_numeric(f["biaya_aktif_miliar"], errors="coerce").fillna(0) <= 0]
                 zero_cols = [c for c in [COL["provinsi"], COL["kabupaten"], "nama_koridor_display", COL["panjang"], "Baik", "Sedang", "Rusak Ringan", "Rusak Berat", "biaya_estimasi_kondisi_miliar", "biaya_aktif_miliar", "biaya_sumber", "biaya_nol_reason"] if c in zero.columns]
                 st.dataframe(format_dataframe_for_display(zero[zero_cols].head(50)), use_container_width=True, height=260)
+
+    st.subheader("Rekap Jenis Produksi")
+    prod_sum = production_summary_table(f)
+    if len(prod_sum):
+        st.caption("Rekap ini membaca Jenis Produksi 1-4, jumlah produksi, dan luas lahan. Bobot komoditas detail terlihat di kolom tertimbang setelah scoring dihitung ulang.")
+        st.dataframe(format_dataframe_for_display(prod_sum.head(50)), use_container_width=True, height=360)
+    else:
+        st.info("Tidak ada data jenis produksi pada hasil filter ini.")
 
 with tab_ranking:
     st.subheader("Daftar Urutan dan Nilai Koridor")

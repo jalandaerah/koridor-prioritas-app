@@ -37,7 +37,7 @@ with st.expander("👤 Dashboard", expanded=True):
     st.markdown("""
     Menu ini dipakai untuk membaca hasil akhir. Fitur utamanya:
     - **Filter sidebar**: provinsi, kabupaten/kota, kategori, tematik, jenis produksi, rentang final score, pencarian teks.
-    - **Overview**: grafik top ranking, komposisi kategori, rekap provinsi, koridor penalti tertinggi, dan biaya aktif 0.
+    - **Overview**: grafik top ranking, komposisi kategori, rekap provinsi, koridor penalti tertinggi, biaya aktif 0, dan rekap jenis produksi.
     - **Ranking**: daftar urutan dan nilai setiap koridor. Kolom bisa dipilih.
     - **Komponen Skor**: melihat kontribusi setiap parameter terhadap skor.
     - **Rekap Wilayah**: rekap per provinsi, kabupaten/kota, atau gabungan.
@@ -106,7 +106,19 @@ with st.expander("🧮 Rumus Perhitungan", expanded=True):
     {"weights":{"persen_rusak_berat":1.3,"persen_rusak_ringan":0.7,"persen_sedang":0.15},"clip_min":0,"clip_max":100}
     ```
 
-    **C. Editor Penalti**
+    **C. Parameter Ekonomi Komoditas**
+    Versi baru membaca `Jenis Produksi 1-4`, `Jumlah Produksi 1-4`, dan `Luas Lahan 1-4`. Ada tiga parameter default:
+    - `Prioritas Jenis Produksi`: menilai jenis komoditasnya saja, misalnya Padi bisa lebih tinggi dari Jagung.
+    - `Jumlah Produksi Tertimbang Komoditas`: jumlah produksi dikalikan bobot komoditas, lalu dinormalisasi.
+    - `Luas Lahan Tertimbang Komoditas`: luas lahan dikalikan bobot komoditas, lalu dinormalisasi.
+
+    Contoh `settings_json` bobot komoditas:
+    ```json
+    {"commodity_weights":{"Padi":1.5,"Jagung":1.2,"Kelapa Sawit":1.15},"default_weight":1.0,"cap_quantile":0.95,"missing_score":0}
+    ```
+    Jika jenis produksi tidak ada di daftar `commodity_weights`, aplikasi memakai `default_weight`.
+
+    **D. Editor Penalti**
     Penalti mengurangi `final_score` bila data kosong/tidak wajar.
 
     Hint: format `settings_json` harus JSON valid. Pakai tanda kutip dua `"`, bukan kutip satu `'`.
@@ -176,5 +188,6 @@ Sebelum ranking dipakai untuk bahan keputusan, cek minimal:
 2. Apakah tematik kosong masih banyak?
 3. Apakah panjang kondisi sudah normal terhadap panjang koridor?
 4. Apakah KML/KMZ kosong memang ingin diabaikan atau memakai panjang koridor?
-5. Apakah top 20 masuk akal secara teknis, ekonomi, konektivitas, dan layanan publik?
+5. Apakah bobot jenis produksi sudah sesuai kebijakan? Jangan langsung menganggap bobot default sebagai bobot final.
+6. Apakah top 20 masuk akal secara teknis, ekonomi, konektivitas, dan layanan publik?
 """)
